@@ -3,8 +3,15 @@
 # written by andrewt@cse.unsw.edu.au September 2013
 # as a starting point for COMP2041/9041 assignment 
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
+# edited by hwav057@cse.unsw.edu.au for more functionality September 2013
 
 while ($line = <>) {
+	#conditions TO-DO:
+	# 1. if loops
+	# 2. foreach loops
+	# 3. while loops
+	# 4. condition handling (perhaps a function that all of the above can call)
+
 	if ($line =~ /^#!/ && $. == 1) {
 	
 		# translate #! line 
