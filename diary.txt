@@ -1,0 +1,3 @@
+Date    Start   Stop    Activity        Comments
+12/9    11:30   11:50   started         added basic variable declaration and variable interpolation in print
+        1:30    2:10    variables def   introduced variable interpolation in variable declaration
