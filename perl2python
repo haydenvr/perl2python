@@ -40,8 +40,26 @@ while ($line = <>) {
 	} elsif ($line =~ /^\s*\$(.+)\;$/) {
 		#declaring a variable 
 		#python just removes the dollar sign and semi-colon
-		
-		print "$1\n";
+		($a,$temp) = split /\s*\=\s*/, $1;	
+		if ($temp =~ /\$/) {
+			#check if each item is a variable and interp
+			@temp = split / /, $temp;
+			print "$a = ";
+			foreach $item (@temp) {
+				if ($item =~ /\$/) {
+					$item =~ s/\$//;
+				}	
+				print "$item ";
+			}
+			print "\n";
+		} else {
+			print "$a = $temp\n";
+		}
+ 	} elsif ($line =~ /^\sif\s*\((.*)\)\s*\{\s*$/) {
+		#if condition
+		#NOT COMPLETE
+		$condition = $1;
+		print "hi and $condition\n";
 	} else {
 	
 		# Lines we can't translate are turned into comments
