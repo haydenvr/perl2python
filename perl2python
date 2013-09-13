@@ -22,46 +22,19 @@ while ($line = <>) {
 		# Blank & comment lines can be passed unchanged
 		
 		print $line;
-	} elsif ($line =~ /^\s*print\s*"(.*)\\n"[\s;]*$/) {
+	} elsif ($line =~ /^\s*print\s*"*(.*)\\n"*[\s;]*$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
 		#TO-DO: need to consider case of variablie interpolation
 		#still not done, can only work when only printing variable
 		$temp = $1;
-		if ($line =~ /\$/) {
-			#case of variable interpolation
-			$line = $temp;
-			@statement = split / /, $line;
-			print "print ";
-			foreach $stat (@statement) {
-				if ($stat =~ /\$(.+)/) {
-					print "$1";
-				} else {
-					print $stat;
-				}
-			}
-			print "\n";
-		} else {
-			print "print \"$1\"\n";
-		}	
+		printFunction($temp);
+			
 	} elsif ($line =~ /^\s*\$(.+)\;$/) {
 		#declaring a variable 
 		#python just removes the dollar sign and semi-colon
 		($a,$temp) = split /\s*\=\s*/, $1;	
-		if ($temp =~ /\$/) {
-			#check if each item is a variable and interp
-			@temp = split / /, $temp;
-			print "$a = ";
-			foreach $item (@temp) {
-				if ($item =~ /\$/) {
-					$item =~ s/\$//;
-				}	
-				print "$item ";
-			}
-			print "\n";
-		} else {
-			print "$a = $temp\n";
-		}
+		variableDec($a,$temp);	
  	} elsif ($line =~ /^\sif\s*\((.*)\)\s*\{\s*$/) {
 		#if condition
 		#NOT COMPLETE
@@ -74,3 +47,47 @@ while ($line = <>) {
 		print "#$line\n";
 	}
 }
+
+sub variableDec {
+	my $variable_name = $_[0];
+	my $variable_assign = $_[1];
+	if ($variable_assign =~ /\$/) {
+			#check if each item is a variable and interp
+			@assigns = split / /, $variable_assign;
+			print "$variable_name = ";
+			foreach $assignment (@assigns) {
+				if ($assignment =~ /\$/) {
+					$assignment =~ s/\$//;
+				}	
+				print "$assignment ";
+			}
+			print "\n";
+		} else {
+			print "$variable_name = $variable_assign\n";
+		}
+}
+
+sub printFunction {
+	my $to_check = $_[0];
+	if ($to_check =~ /\$/) {
+		#case of variable interpolation
+		@statements = split /\,*\s+/, $to_check;
+		print "print ";
+		foreach $stat (@statements) {
+			if ($stat =~ /\$(.+)/) {
+				print "$1";
+			} elsif ($stat =~ /$\".+\"^/) {
+				print "$stat";
+			} elsif ($stat eq "\*") {
+				print "$stat";
+			}
+			if ($stat ne $statements[$#statements]) {
+				print " ";
+			}
+		}
+		print "\n";
+	} else {
+		print "print \"$to_check\"\n";
+	}
+}
+
