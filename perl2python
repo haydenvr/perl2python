@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 
+#CURRENTLY WORKING ON LINE 120
+
 # written by andrewt@cse.unsw.edu.au September 2013
 # as a starting point for COMP2041/9041 assignment 
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
@@ -35,12 +37,12 @@ while ($line = <>) {
 		#python just removes the dollar sign and semi-colon
 		($a,$temp) = split /\s*\=\s*/, $1;	
 		variableDec($a,$temp);	
- 	} elsif ($line =~ /^\s*(if\s*\(.*\))\s*\{\s*$/) {
+ 	} elsif ($line =~ /^\s*if\s*\((.*)\)\s*\{\s*$/) {
 		#if condition
 		#NOT COMPLETE
 		#needs variable interp
 		$tab++;
-		print "$1:\n";
+		handleIf($1);
 	} elsif ($line =~ /^\s*\}\s*$/) {
 		#catch the end of a loop or similar statement with a "}"
 		#WON'T work if there is anything else in the line, ie a elsif stat
@@ -97,6 +99,30 @@ sub printFunction {
 	} else {
 		outputPrint("print \"$to_check\"\n");
 	}
+}
+
+sub conditionHandling {
+	#function to go through conditional statements and to translate them 
+	#appropriately to python and returns the result
+	my $cond_to_check = $_[0];
+	
+	if ($cond_to_check =~ /^\$/) {
+		#variable declaration, just remove "$"
+	} #write more elsifs to check each conditional ie > < = ne eq ...
+
+	return $cond_to_check;
+}
+
+sub handleIf {
+	#function for handling if statements, mainly just changes curly brackets
+	#to colon, and translates the condition statement
+	my $conds_to_trans = $_[0];
+	$line_to_print = "if (";
+
+	#now loop through conds and trans
+	#NOT DONE!!!
+	
+	outputPrint("$line_to_print:\n");
 }
 
 sub outputPrint {
