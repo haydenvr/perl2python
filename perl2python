@@ -9,11 +9,12 @@
 $tab = 0;
 while ($line = <>) {
 	#conditions TO-DO:
-	# 1. if loops
-	# 2. foreach loops
-	# 3. while loops
+	# 1. if loops DONE
+	# 2. foreach loops DONE //kinda.. needs more functionality
+	# 3. while loops DONE
 	# 4. condition handling (perhaps a function that all of the above can call)
-
+	# 5. boolean logic and string concatenation
+	# 6. range operator and when perl converts array to scalar length (context)
 	if ($line =~ /^#!/ && $. == 1) {
 	
 		# translate #! line 
@@ -41,8 +42,16 @@ while ($line = <>) {
 		#if condition
 		#NOT COMPLETE
 		#needs variable interp
-		$tab++;
 		handleIf($1);
+		$tab++;
+	} elsif ($line =~ /^\s*while\s*\((.*)\)\s*\{\s*$/) {
+		#while loop
+		handleWhile($1);
+		$tab++;
+	} elsif ($line =~ /^\s*foreach\s*(.+)\)\s*\{\s*$/) {
+		#foreach loop
+		handleForeach($1);
+		$tab++;
 	} elsif ($line =~ /^\s*\}\s*$/) {
 		#catch the end of a loop or similar statement with a "}"
 		#WON'T work if there is anything else in the line, ie a elsif stat
@@ -106,23 +115,83 @@ sub conditionHandling {
 	#appropriately to python and returns the result
 	my $cond_to_check = $_[0];
 	
-	if ($cond_to_check =~ /^\$/) {
+	if ($cond_to_check =~ /^\$(.*)$/) {
 		#variable declaration, just remove "$"
-	} #write more elsifs to check each conditional ie > < = ne eq ...
-
-	return $cond_to_check;
+		return $1;
+	} elsif ($cond_to_check =~ /^\>=*|[=!]=|\<=*$/) {
+		#conditional operators that are the same in perl and python
+		return " $cond_to_check ";
+	} elsif ($cond_to_check eq "ne") {
+		return " != ";
+	} elsif ($cond_to_check eq "eq") {
+		return " == ";
+	} elsif ($cond_to_check eq "lt") {
+		return " < ";
+	} elsif ($cond_to_check eq "gt") {
+		return " > ";
+	} elsif ($cond_to_check eq "le") {
+		return " <= ";
+	} elsif ($cond_to_check eq "ge") {
+		return " >= "
+	} elsif ($cond_to_check =~ /^[0-9a-zA-Z]+$/) {
+		return $cond_to_check;
+	} else { return "?$cond_to_check?"; } 
 }
 
 sub handleIf {
 	#function for handling if statements, mainly just changes curly brackets
 	#to colon, and translates the condition statement
 	my $conds_to_trans = $_[0];
-	$line_to_print = "if (";
+	$line_to_print = "if ";
 
 	#now loop through conds and trans
-	#NOT DONE!!!
+	my @conds = split /\s+/, $conds_to_trans;
+	
+	foreach $cond (@conds) {
+		$line_to_print .= conditionHandling($cond);
+	}
 	
 	outputPrint("$line_to_print:\n");
+}
+
+sub handleWhile {
+	my $conds_to_trans = $_[0];
+	$line_to_print = "while ";
+
+	my @conds = split /\s+/, $conds_to_trans;
+
+	foreach $cond(@conds) {
+		$line_to_print .= conditionHandling($cond);
+	}
+
+	outputPrint("$line_to_print:\n");
+}
+
+sub handleForeach {
+	#foreach loops are slightly tougher than if and while loops to translate
+	#they use a declaration and then a set of numbers which act as a range 
+	#of indexes
+	my $conds_to_trans = $_[0];
+        $line_to_print = "for ";
+
+        my @conds = split /\s+/, $conds_to_trans;
+
+	#first variable will just be a variable name
+	$line_to_print .= conditionHandling($conds[0]);
+
+	#then need to add some python syntax
+	$line_to_print .= " in ";
+
+	#then the difficult part, translating range
+	#ATM just considering basic example of (x..y)
+	$line_to_print .= "range(";
+	$conds[1] =~ s/\(|\)//;
+	my @nums = split /\.+/, $conds[1];
+	$nums[1]++; #pythons range function doesn't include last num
+	$line_to_print .= "$nums[0], $nums[1])";
+	
+        outputPrint("$line_to_print:\n");
+	
 }
 
 sub outputPrint {
