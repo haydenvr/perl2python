@@ -4,7 +4,7 @@
 # as a starting point for COMP2041/9041 assignment 
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September 2013
-
+$tab = 0;
 while ($line = <>) {
 	#conditions TO-DO:
 	# 1. if loops
@@ -21,7 +21,7 @@ while ($line = <>) {
 	
 		# Blank & comment lines can be passed unchanged
 		
-		print "$line";
+		outputPrint("$line");
 	} elsif ($line =~ /^\s*print\s*"*(.*)\\n"*[\s;]*$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
@@ -35,16 +35,22 @@ while ($line = <>) {
 		#python just removes the dollar sign and semi-colon
 		($a,$temp) = split /\s*\=\s*/, $1;	
 		variableDec($a,$temp);	
- 	} elsif ($line =~ /^\sif\s*\((.*)\)\s*\{\s*$/) {
+ 	} elsif ($line =~ /^\s*(if\s*\(.*\))\s*\{\s*$/) {
 		#if condition
 		#NOT COMPLETE
-		$condition = $1;
-		print "hi and $condition\n";
+		#needs variable interp
+		$tab++;
+		print "$1:\n";
+	} elsif ($line =~ /^\s*\}\s*$/) {
+		#catch the end of a loop or similar statement with a "}"
+		#WON'T work if there is anything else in the line, ie a elsif stat
+		$tab--;
+		outputPrint("\n");
 	} else {
 	
 		# Lines we can't translate are turned into comments
 		
-		print "#$line\n";
+		outputPrint("#$line\n");
 	}
 }
 
@@ -54,16 +60,17 @@ sub variableDec {
 	if ($variable_assign =~ /\$/) {
 			#check if each item is a variable and interp
 			@assigns = split / /, $variable_assign;
-			print "$variable_name = ";
+			$line_to_print = "$variable_name = ";
 			foreach $assignment (@assigns) {
 				if ($assignment =~ /\$/) {
 					$assignment =~ s/\$//;
 				}	
-				print "$assignment ";
+				$line_to_print .= "$assignment ";
 			}
-			print "\n";
+			$line_to_print .= "\n";
+			outputPrint($line_to_print);
 		} else {
-			print "$variable_name = $variable_assign\n";
+			outputPrint("$variable_name = $variable_assign\n");
 		}
 }
 
@@ -72,22 +79,32 @@ sub printFunction {
 	if ($to_check =~ /\$/) {
 		#case of variable interpolation
 		@statements = split /\,*\s+/, $to_check;
-		print "print ";
+		$line_to_print = "print ";
 		foreach $stat (@statements) {
 			if ($stat =~ /\$(.+)/) {
-				print "$1";
+				$line_to_print .= "$1";
 			} elsif ($stat =~ /$\".+\"^/) {
-				print "$stat";
+				$line_to_print .= "$stat";
 			} elsif ($stat eq "\*") {
-				print "$stat";
+				$line_to_print .= "$stat";
 			}
 			if ($stat ne $statements[$#statements]) {
-				print " ";
+				$line_to_print .= " ";
 			}
 		}
-		print "\n";
+		$line_to_print .= "\n";
+		outputPrint($line_to_print);
 	} else {
-		print "print \"$to_check\"\n";
+		outputPrint("print \"$to_check\"\n");
 	}
 }
 
+sub outputPrint {
+	my $to_print = $_[0];
+	$amt_tabs = $tab;
+	while ($amt_tabs > 0) {
+		print "    ";
+		$amt_tabs--;
+	}
+	print "$to_print";
+}
