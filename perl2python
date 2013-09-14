@@ -1,12 +1,23 @@
 #!/usr/bin/perl
 
-#CURRENTLY WORKING ON LINE 120
+#CURRENTLY WORKING ON LINE 104: test 3 is printing out print functions
+#with newlines in the quotations that shouldn't be there
+#also, it should be writing "sys.stdout.write(wordds...)" rather than
+#print(wordds..), but the answers want print(wordds..) so have a look
+#into this
+
+#need to have some way to determine whether a variable is a string or a integer 
+#maybe a dict of all variable names and just assume they are strings?
 
 # written by andrewt@cse.unsw.edu.au September 2013
 # as a starting point for COMP2041/9041 assignment 
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September 2013
 $tab = 0;
+our @python_source = ();
+our @imports_python_source = ();
+$lines_python_source = 0;
+our $lines_imports = 0;
 while ($line = <>) {
 	#conditions TO-DO:
 	# 1. if loops DONE
@@ -24,8 +35,8 @@ while ($line = <>) {
 	
 		# Blank & comment lines can be passed unchanged
 		
-		outputPrint("$line");
-	} elsif ($line =~ /^\s*print\s*"*(.*)\\n"*[\s;]*$/) {
+		addToSourceArray("$line");
+	} elsif ($line =~ /^\s*print\s*"*(.*)"*\\?n?"*\s*\;$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
 		#TO-DO: need to consider case of variablie interpolation
@@ -52,18 +63,21 @@ while ($line = <>) {
 		#foreach loop
 		handleForeach($1);
 		$tab++;
-	} elsif ($line =~ /^\s*\}\s*$/) {
+	} elsif ($line =~ /^\s*\}\s*.*\s*$/) {
 		#catch the end of a loop or similar statement with a "}"
 		#WON'T work if there is anything else in the line, ie a elsif stat
 		$tab--;
-		outputPrint("\n");
+		$result = handleElse($line); # =1 when else, =0 when normal
+		$tab += $result;
 	} else {
 	
 		# Lines we can't translate are turned into comments
 		
-		outputPrint("#$line\n");
+		addToSourceArray("#$line\n");
 	}
+	$lines_python_source++;
 }
+outputSource();
 
 sub variableDec {
 	my $variable_name = $_[0];
@@ -73,24 +87,38 @@ sub variableDec {
 			@assigns = split / /, $variable_assign;
 			$line_to_print = "$variable_name = ";
 			foreach $assignment (@assigns) {
-				if ($assignment =~ /\$/) {
+				if ($assignment eq "\<STDIN\>") {
+					handleImports("sys");
+					$assignment = "int(sys.stdin.readline())";
+				} elsif ($assignment =~ /\$/) {
 					$assignment =~ s/\$//;
 				}	
 				$line_to_print .= "$assignment ";
 			}
 			$line_to_print .= "\n";
-			outputPrint($line_to_print);
+			addToSourceArray($line_to_print);
 		} else {
-			outputPrint("$variable_name = $variable_assign\n");
+			if ($variable_assign eq "\<STDIN\>") {
+				handleImports("sys");
+				$variable_assign = "int(sys.stdin.readline())";
+			}
+			addToSourceArray("$variable_name = $variable_assign\n");
 		}
 }
 
 sub printFunction {
 	my $to_check = $_[0];
+	$to_check =~ s/\"//g; #remove trailing ""
 	if ($to_check =~ /\$/) {
 		#case of variable interpolation
 		@statements = split /\,*\s+/, $to_check;
-		$line_to_print = "print ";
+		$sys_check = 0;
+		if (grep( /^sys$/, @imports_python_source)) {
+			$line_to_print = "sys.stdout.write(";
+			$sys_check = 1;
+		} else {
+			$line_to_print = "print ";
+		}
 		foreach $stat (@statements) {
 			if ($stat =~ /\$(.+)/) {
 				$line_to_print .= "$1";
@@ -103,10 +131,15 @@ sub printFunction {
 				$line_to_print .= " ";
 			}
 		}
+		$line_to_print .= ")" if $sys_check == 1;
 		$line_to_print .= "\n";
-		outputPrint($line_to_print);
+		addToSourceArray($line_to_print);
 	} else {
-		outputPrint("print \"$to_check\"\n");
+		if (grep( /^$import_to_check$/, @imports_python_source)) {
+			addToSourceArray("sys.stdout.write\(\"$to_check\"\)\n");
+		} else {
+			addToSourceArray("print \"$to_check\"\n");
+		}
 	}
 }
 
@@ -118,7 +151,7 @@ sub conditionHandling {
 	if ($cond_to_check =~ /^\$(.*)$/) {
 		#variable declaration, just remove "$"
 		return $1;
-	} elsif ($cond_to_check =~ /^\>=*|[=!]=|\<=*$/) {
+	} elsif ($cond_to_check =~ /^\>=*|[=!]=|\<=*|%$/) {
 		#conditional operators that are the same in perl and python
 		return " $cond_to_check ";
 	} elsif ($cond_to_check eq "ne") {
@@ -151,7 +184,7 @@ sub handleIf {
 		$line_to_print .= conditionHandling($cond);
 	}
 	
-	outputPrint("$line_to_print:\n");
+	addToSourceArray("$line_to_print:\n");
 }
 
 sub handleWhile {
@@ -164,7 +197,24 @@ sub handleWhile {
 		$line_to_print .= conditionHandling($cond);
 	}
 
-	outputPrint("$line_to_print:\n");
+	addToSourceArray("$line_to_print:\n");
+}
+
+sub handleImports {
+	my $import_to_check = $_[0];
+	if (!grep( /^$import_to_check$/, @imports_python_source)) {
+		$imports_python_source[$lines_imports] = "$import_to_check";
+		$lines_imports++;
+	} 
+	#now the previous lines in our source output array need to be altered
+	#to fit with the new import (ie the print funct is now 
+	#sys.stdout.write()
+	#JUST WRITING ONE TO CHECK FOR PRINT FUNCTION IN SYS NOW	
+	foreach $line (@python_source) {
+		if ($line =~ /^(\s*)print\s*(.*)$/) {
+			$line = "$1sys.stdout.write($2)\n";
+		} 
+	}
 }
 
 sub handleForeach {
@@ -190,16 +240,57 @@ sub handleForeach {
 	$nums[1]++; #pythons range function doesn't include last num
 	$line_to_print .= "$nums[0], $nums[1])";
 	
-        outputPrint("$line_to_print:\n");
+        addToSourceArray("$line_to_print:\n");
 	
 }
 
-sub outputPrint {
+sub handleElse {
+	my $cond_to_handle = $_[0];
+	#print "Hayden here and ($cond_to_handle)\n";
+	if ($cond_to_handle =~ /^\s*\}\s*elsif\s*\((.*)\)\s*\{\s*$/) {
+		#case that it is an elsif statement
+		$line_to_print = "elif ";
+ 
+	         #now loop through conds and trans
+        	my @conds = split /\s+/, $1;
+ 	
+        	foreach $cond (@conds) {
+                	$line_to_print .= conditionHandling($cond);
+        	}	
+
+        	addToSourceArray("$line_to_print:\n");
+		return 1;
+	} elsif ($cond_to_handle =~ /^\s*\}\s*else\s*\{\s*$/) {
+		#case that it is a normal else statement
+		addToSourceArray("else:\n");
+		return 1;
+	} else {
+		return 0; #case its the end
+	}
+
+	return $result;
+}
+
+sub addToSourceArray {
 	my $to_print = $_[0];
 	$amt_tabs = $tab;
 	while ($amt_tabs > 0) {
-		print "    ";
+		$python_source[$lines_python_source] .= "    ";
 		$amt_tabs--;
 	}
-	print "$to_print";
+	$python_source[$lines_python_source] .= $to_print;
+}
+
+sub outputSource {
+	print "import " if $lines_imports != 0;
+	$i = 0;
+	foreach $line (@imports_python_source) {
+		print $line;
+		if ($i < $lines_imports - 1) { print ", "; }
+		$i++	
+	}
+	print "\n" if $i != 0;
+	foreach $line (@python_source) {
+		print $line;
+	}
 }
