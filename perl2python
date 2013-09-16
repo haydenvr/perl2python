@@ -26,6 +26,7 @@ while ($line = <>) {
 	# 4. condition handling (perhaps a function that all of the above can call)
 	# 5. boolean logic and string concatenation
 	# 6. range operator and when perl converts array to scalar length (context)
+	chomp $line;
 	if ($line =~ /^#!/ && $. == 1) {
 	
 		# translate #! line 
@@ -36,7 +37,7 @@ while ($line = <>) {
 		# Blank & comment lines can be passed unchanged
 		
 		addToSourceArray("$line");
-	} elsif ($line =~ /^\s*print\s*"*(.*)"*\\?n?"*\s*\;$/) {
+	} elsif ($line =~ /^\s*print\s*"*(.*)\s*\\n\s*"*\s*\;*$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
 		#TO-DO: need to consider case of variablie interpolation
