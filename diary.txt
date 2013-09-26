@@ -3,7 +3,7 @@ Date    Start   Stop    Activity        	Comments
         1:30pm  2:10    variables def   	introduced variable interpolation in variable declaration
 13/9    10:00am 11.00   print function  	got print function working, started using subs for bigger translations
                                         	wrote a bit more of test.sh
-14/9	4:30pm	5:00pm	if function		introduced handling of if statements, and also the tabs required by python
-	7:50pm	8.40pm while and foreach	wrote more handling on the loops and the operators	
-	9.20pm	11:05pm imports and else	added handling for importing and specifically STDIN, and else/elsif statements + debugging 
-	
+14/9	4:30pm	5:00pm	if function			introduced handling of if statements, and also the tabs required by python
+	7:50pm	8.40pm while and foreach		wrote more handling on the loops and the operators	
+	9.20pm	11:05pm imports and else		added handling for importing and specifically STDIN, and else/elsif statements + debugging 
+26/9 	4:00pm	6:00pm	fixing print		chomp function, fixing up print handling

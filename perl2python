@@ -16,6 +16,7 @@
 $tab = 0;
 our @python_source = ();
 our @imports_python_source = ();
+our %variables = [];
 $lines_python_source = 0;
 our $lines_imports = 0;
 while ($line = <>) {
@@ -35,7 +36,7 @@ while ($line = <>) {
 		# Blank & comment lines can be passed unchanged
 		print "$line\n";
 		#addToSourceArray("$line");
-	} elsif ($line =~ /^\s*print\s*"*(.*)\s*\\n\s*"*\s*\;*$/) {
+	} elsif ($line =~ /^\s*print\s*("*.*\s*\\n\s*")*\s*\;*$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
 		#TO-DO: need to consider case of variablie interpolation
@@ -68,6 +69,11 @@ while ($line = <>) {
 		$tab--;
 		$result = handleElse($line); # =1 when else, =0 when normal
 		$tab += $result;
+	} elsif ($line =~ /^\s*chomp \$([^\;]*)\;\s*$/) {
+		#handle chomp function	
+		addToSourceArray("$1 = $1.rstrip()\n");
+	} elsif ($line =~ /\s*last;\s*$/) {
+		addToSourceArray("break\n");
 	} else {
 	
 		# Lines we can't translate are turned into comments
@@ -77,6 +83,13 @@ while ($line = <>) {
 	$lines_python_source++;
 }
 outputSource();
+
+sub variableDict {
+	my $line_to_check = $_[0];
+	foreach $word (split /\s+/, $line_to_check) {
+		
+	}
+}
 
 sub variableDec {
 	my $variable_name = $_[0];
@@ -88,7 +101,7 @@ sub variableDec {
 			foreach $assignment (@assigns) {
 				if ($assignment eq "\<STDIN\>") {
 					handleImports("sys");
-					$assignment = "int(sys.stdin.readline())";
+					$assignment = "sys.stdin.readline()";
 				} elsif ($assignment =~ /\$/) {
 					$assignment =~ s/\$//;
 				}	
@@ -96,10 +109,10 @@ sub variableDec {
 			}
 			$line_to_print .= "\n";
 			addToSourceArray($line_to_print);
-		} else {
+		} else { #ERRRRORORORORORORORORORORORORO
 			if ($variable_assign eq "\<STDIN\>") {
 				handleImports("sys");
-				$variable_assign = "int(sys.stdin.readline())";
+				$variable_assign = "sys.stdin.readline()";
 			}
 			addToSourceArray("$variable_name = $variable_assign\n");
 		}
@@ -119,25 +132,41 @@ sub checkSysMod {
 
 sub printFunction {
 	my $to_check = $_[0];
-	$to_check =~ s/\"//g; #remove trailing ""
-	if ($to_check =~ /\$/) {
-		#case of variable interpolation
-		@statements = split /\,*\s+/, $to_check;
+	if (($to_check =~ /\$/)||($to_check =~ /^\s*\"([^\"]*)\"\s*$/)) {
+		#case of more complicated print statements including variables and functions etc..
+		#note: currently only handles functions that are declared using brackets
+		#if declared without brackets, then will be commented
+		#$to_check =~ s/\"//g; #remove trailing ""
+		@statements = split /\,+/, $to_check;
 		$sys_check = 0;
-		if (grep( /^sys$/, @imports_python_source)) {
-			$line_to_print = "sys.stdout.write(";
-			$sys_check = 1;
-		} else {
+		#if (grep( /^sys$/, @imports_python_source)) {
+		#	$line_to_print = "sys.stdout.write(";
+		#	$sys_check = 1;
+		#} else {
 			$line_to_print = "print ";
-		}
+		#}
 		foreach $stat (@statements) {
-			if ($stat =~ /\$(.+)/) {
+			$stat =~ s/\\n//g;
+			if ($stat =~ /^\s*\"\$([^\"]*)\"\s*$/) {
 				$line_to_print .= "$1";
-			} elsif ($stat =~ /$\".+\"^/) {
-				$line_to_print .= "$stat";
+				
+			#} elsif ($stat =~ /$\".+\"^/) {
+			#	$line_to_print .= "$stat";
 			} elsif ($stat eq "\*") {
 				$line_to_print .= "$stat";
+				
+			#} elsif {
+				
+			} elsif ($stat =~ /^\s*\"([^\"]+)\"\s*$/) {
+				
+				$stat = $1;
+				$stat =~ s/\\n//g;
+				$line_to_print .= "\"$stat\"";
+				
+			} else {
+				$line_to_print .= "#$stat#";
 			}
+			#add space if its not last expression in print statement
 			if ($stat ne $statements[$#statements]) {
 				$line_to_print .= " ";
 			}
@@ -145,12 +174,18 @@ sub printFunction {
 		$line_to_print .= ")" if $sys_check == 1;
 		$line_to_print .= "\n";
 		addToSourceArray($line_to_print);
+	#}  {
+		#case printing just a string, got to remove "\n"
+		#if (grep( /^$import_to_check$/, @imports_python_source)) {
+		#	addToSourceArray("sys.stdout.write\(\"$to_check\"\)\n");
+		#} else {
+		#$to_check = $1;
+		#$to_check =~ s/\\n//g;
+	#	addToSourceArray("print \"$to_check\"\n");
+		#}
+		
 	} else {
-		if (grep( /^$import_to_check$/, @imports_python_source)) {
-			addToSourceArray("sys.stdout.write\(\"$to_check\"\)\n");
-		} else {
-			addToSourceArray("print \"$to_check\"\n");
-		}
+		addToSourceArray("#print $to_check\n");
 	}
 }
 
@@ -177,7 +212,7 @@ sub conditionHandling {
 		return " <= ";
 	} elsif ($cond_to_check eq "ge") {
 		return " >= "
-	} elsif ($cond_to_check =~ /^[0-9a-zA-Z]+$/) {
+	} elsif ($cond_to_check =~ /^[\"\'0-9a-zA-Z]+$/) {
 		return $cond_to_check;
 	} else { return "?$cond_to_check?"; } 
 }
@@ -221,11 +256,11 @@ sub handleImports {
 	#to fit with the new import (ie the print funct is now 
 	#sys.stdout.write()
 	#JUST WRITING ONE TO CHECK FOR PRINT FUNCTION IN SYS NOW	
-	foreach $line (@python_source) {
-		if ($line =~ /^(\s*)print\s*(.*)$/) {
-			$line = "$1sys.stdout.write($2)\n";
-		} 
-	}
+	#foreach $line (@python_source) {
+	#	if ($line =~ /^(\s*)print\s*(.*)$/) {
+	#		$line = "$1sys.stdout.write($2)\n";
+	#	} 
+	#}
 }
 
 sub handleForeach {
