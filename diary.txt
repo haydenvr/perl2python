@@ -9,3 +9,4 @@ Date    Start   Stop    Activity        	Comments
 26/9 	4:00pm	6:00pm	fixing print		chomp function, fixing up print handling
 27/9 	9:00am	11:00am	fixing print and sys	had to do a complete overhaul of my print handling as I made it too complex and that was actually making it
 												impossible to handle certain types of strings. Also introduced some sys module handling
+		5:00pm	6:00pm	some filehandling	improved file handling and finished off rest of subset 3

@@ -1,13 +1,11 @@
 #!/usr/bin/perl
 
-#CURRENTLY WORKING ON LINE 104: test 3 is printing out print functions
-#with newlines in the quotations that shouldn't be there
-#also, it should be writing "sys.stdout.write(wordds...)" rather than
-#print(wordds..), but the answers want print(wordds..) so have a look
-#into this
+#noticed that sometimes he wants to print something before a user inputs data
+#and in that case he uses sys.stdout.write() instead of print
+#this is only in the case that the next line is sys.stdin.readline()
+#MAYBE implement something for this, but not too vital as they are same
 
-#need to have some way to determine whether a variable is a string or a integer 
-#maybe a dict of all variable names and just assume they are strings?
+#currently fixing variable declaration on line 102 to include reg exp
 
 # written by andrewt@cse.unsw.edu.au September 2013
 # as a starting point for COMP2041/9041 assignment 
@@ -35,7 +33,7 @@ while ($line = <>) {
 	
 		# Blank & comment lines can be passed unchanged
 		addToSourceArray("$line\n");
-	} elsif ($line =~ /^\s*print\s*("*.*\s*\\n\s*")*\s*\;*$/) {
+	} elsif ($line =~ /^\s*print\s*("*.*\s*[\\n]?\s*")*\s*\;*$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
 		#TO-DO: need to consider case of variablie interpolation
@@ -79,14 +77,25 @@ while ($line = <>) {
 		
 		addToSourceArray("#$line\n");
 	}
-	$lines_python_source++;
 }
 outputSource();
 
-sub variableDict {
-	my $line_to_check = $_[0];
-	foreach $word (split /\s+/, $line_to_check) {
-		
+sub handleIntegerVariables { 
+	#read in variables passed from the conditionHandling function
+	#and determine if it is a variable or constant
+	#if constant, then change code to include int() changing
+	my $variable= $_[0];
+	
+	if ($variable =~ /\$/) {
+		$variable =~ s/\$//;
+		foreach my $py_line (@python_source) {
+			#these are cases that have been needed to be added for the examples
+			#i am only adding the necessary ones
+			if ($py_line =~ /^(\s*$variable\s*=\s*)(sys.stdin.readline\(\)\s*)[\\n]*$/) {
+				$py_line = "$1int(sys.stdin.readline())\n";
+			}
+		}
+		$python_source[$lines_python_source]
 	}
 }
 
@@ -108,134 +117,122 @@ sub variableDec {
 			}
 			$line_to_print .= "\n";
 			addToSourceArray($line_to_print);
-		} else { #ERRRRORORORORORORORORORORORORO CHANGE TO CHECKSYSMOD
-			#if ($variable_assign eq "\<STDIN\>") {
-			#	handleImports("sys");
-			#	$variable_assign = "sys.stdin.readline()";
-			#}
+		} else { 
 			$variable_assign = checkSysMod($variable_assign);
 			addToSourceArray("$variable_name = $variable_assign\n");
 		}
 }
 
 sub checkSysMod {
-	my $to_check = $_[0];
-	#if ('@ARGV' eq '@ARGV') { print "HIIIII\n"; }
 	#check if any sys commands are present
+	#replace them with python equiv
+	#call handle imports if true
+	my $to_check = $_[0];
 	if ($to_check eq '@ARGV') {
 		$to_check = 'sys.argv[1:]';
 		handleImports('sys');
 	} elsif ($to_check eq '<STDIN>') {
 		$to_check = "sys.stdin.readline()";
 		handleImports('sys');
+	} elsif ($to_check eq '<>') {
+		$to_check = "fileinput.input()";
+		handleImports('fileinput')
 	}
-
-	#replace them with python equiv
-	#call handle imports if true	
 	return $to_check;
 }
 
 sub printFunction {
 	my $to_check = $_[0];
-	#if (($to_check =~ /\$/)||($to_check =~ /^\s*\"([^\"]*)\"\s*$/)) {
-		#case of more complicated print statements including variables and functions etc..
-		#note: currently only handles functions that are declared using brackets
-		#if declared without brackets, then will be commented
-		#cant handle multiple strings
-		
-		$to_check =~ s/\"//g; #remove trailing ""
-		
-		@statements = split / *\, *| +/, $to_check;
-		
-		$line_to_print = "print ";
-		my $is_string = 0;
-		my $dont_add_space = 0;
-		$last_stat = $statements[$#statements];
-		
-		$last_stat =~ s/\\n//g;
-		while ($stat = shift @statements) {
-			$stat =~ s/\\n//g;
-			if ($stat =~ /^\s*\$(.*)$/) {
-				if ($is_string == 1) {
-					$line_to_print .= "\"\,";
-					$is_string = 0;
-				} 
-				$line_to_print .= "$1";
-			} elsif ($stat eq "\*") {
-				if ($is_string == 1) {
-					$line_to_print .= "\" ";
-					$is_string = 0;
-				} 
-				$line_to_print .= "$stat";
-			} elsif ($stat eq "") {
-				#this is the case that the string to print was just a newline
-				#just going to assume its nothing
-				$dont_add_space = 1;
-			
-			} elsif ($stat =~ /^\s*join\((.*)/) {	
-			#case it is a function call
-			#this is a difficult one as the spilt statement on line 140 can be faulty here
-			#as arguments in function calls are separated by commas
-			#so in this case, i need to get all the arguments and then process the line
-				$stat = $1;
-				if ($stat eq '\'') {
-					#we need the next bit
-					$stat2 = shift @statements;
-					if ($stat2 eq '\'') {
-						#they were trying to seperate it with whitespace
-						$line_to_print .= "\' \'.join\(";
-					} else {
-						#seperating it with something else
-						$stat2 =~ s/\'//;
-						$line_to_print .= "\'$stat2\'.join\(";
-					}
-					#no to find the variable they are joining
-					$stat = shift @statements;
-					$stat =~ s/\)//;
-					#print "i am checking 
-					$stat = checkSysMod($stat);
-					$line_to_print .= $stat.")";
+	#case of more complicated print statements including variables and functions etc..
+	#note: currently only handles functions that are declared using brackets
+	#if declared without brackets, then will be commented
+	#cant handle multiple strings
+	$to_check =~ s/\"//g; #remove trailing ""
+	@statements = split / *\, *| +/, $to_check;
+	$line_to_print = "print ";
+	my $is_string = 0;
+	my $dont_add_space = 0;
+	$last_stat = $statements[$#statements];
+	$last_stat =~ s/\\n//g;
+	while ($stat = shift @statements) {
+		$stat =~ s/\\n//g;
+		if ($stat =~ /^\s*\$(.*)$/) {
+			if ($is_string == 1) {
+				$line_to_print .= "\"\,";
+				$is_string = 0;
+			} 
+			$line_to_print .= "$1";
+		} elsif ($stat eq "\*") {
+			if ($is_string == 1) {
+				$line_to_print .= "\" ";
+				$is_string = 0;
+			} 
+			$line_to_print .= "$stat";
+		} elsif ($stat eq "") {
+			#this is the case that the string to print was just a newline
+			#just going to assume its nothing
+			$dont_add_space = 1;
+		} elsif ($stat =~ /^\s*join\((.*)/) {	
+		#case it is a function call
+		#this is a difficult one as the spilt statement on line 140 can be faulty here
+		#as arguments in function calls are separated by commas
+		#so in this case, i need to get all the arguments and then process the line
+			$stat = $1;
+			if ($stat eq '\'') {
+				#we need the next bit
+				$stat2 = shift @statements;
+				if ($stat2 eq '\'') {
+					#they were trying to seperate it with whitespace
+					$line_to_print .= "\' \'.join\(";
+				} else {
+					#seperating it with something else
+					$stat2 =~ s/\'//;
+					$line_to_print .= "\'$stat2\'.join\(";
 				}
-				
-			} else {
-			#case printing a string, need to add quotes
-				$line_to_print .= "\"$stat" if $is_string == 0;
-				$line_to_print .= "$stat" if $is_string == 1;
-				$is_string = 1;
+				#no to find the variable they are joining
+				$stat = shift @statements;
+				$stat =~ s/\)//;
+				$stat = checkSysMod($stat);
+				$line_to_print .= $stat.")";
 			}
-			#add space if its not last expression in print statement
-			if (($stat ne $last_stat)&&($dont_add_space == 0)) {
-				$line_to_print .= " ";
-			}
-			$dont_add_space = 0;
+		} else {
+		#case printing a string, need to add quotes
+			$line_to_print .= "\"$stat" if $is_string == 0;
+			$line_to_print .= "$stat" if $is_string == 1;
+			$is_string = 1;
 		}
-		#$line_to_print .= ")" if $sys_check == 1;
-		$line_to_print .= "\"" if $is_string == 1;
-		$line_to_print .= "\n";
-		addToSourceArray($line_to_print);
-	#}  {
-		#case printing just a string, got to remove "\n"
-		#if (grep( /^$import_to_check$/, @imports_python_source)) {
-		#	addToSourceArray("sys.stdout.write\(\"$to_check\"\)\n");
-		#} else {
-		#$to_check = $1;
-		#$to_check =~ s/\\n//g;
-	#	addToSourceArray("print \"$to_check\"\n");
-		#}
-		
+		#add space if its not last expression in print statement
+		if (($stat ne $last_stat)&&($dont_add_space == 0)) {
+			$line_to_print .= " ";
+		}
+		$dont_add_space = 0;
+	}	
+	$line_to_print .= "\"" if $is_string == 1;
+	$line_to_print .= "\n";
+	addToSourceArray($line_to_print);
+}
+
+sub regularExpHandling {
+	my $to_check = $_[0];
 	
+	#check if using reg exp and which one
+	#change if true to the python alternative
+	#also call handleImports('re') if true
+
+	return $to_check;
 }
 
 sub conditionHandling {
 	#function to go through conditional statements and to translate them 
 	#appropriately to python and returns the result
 	my $cond_to_check = $_[0];
-	
 	if ($cond_to_check =~ /^\$(.*)$/) {
 		#variable declaration, just remove "$"
 		return $1;
-	} elsif ($cond_to_check =~ /^\>=*|[=!]=|\<=*|%$/) {
+	} elsif ($cond_to_check =~ /^\>=*|[=!]?=|\<=*|%$/) {
 		#conditional operators that are the same in perl and python
+		#this case here is also used to determine that a variable is an integer
+		handleIntegerVariables($_[1]); #the last variable is passed through the second parameter
 		return " $cond_to_check ";
 	} elsif ($cond_to_check eq "ne") {
 		return " != ";
@@ -264,7 +261,8 @@ sub handleIf {
 	my @conds = split /\s+/, $conds_to_trans;
 	
 	foreach $cond (@conds) {
-		$line_to_print .= conditionHandling($cond);
+		$line_to_print .= conditionHandling($cond, $last);
+		$last = $cond;
 	}
 	
 	addToSourceArray("$line_to_print:\n");
@@ -277,7 +275,16 @@ sub handleWhile {
 	my @conds = split /\s+/, $conds_to_trans;
 
 	foreach $cond(@conds) {
-		$line_to_print .= conditionHandling($cond);
+		if ($cond eq '<>') {
+			#reading from STDIN/arguments, equiv of python fileinput.input()
+			#however need to use for loop and handle the import
+			$line_to_print =~ s/^while/for/;
+			$line_to_print =~ s/=/in/;
+			$cond = checkSysMod($cond);
+			$line_to_print .= $cond;
+		} else {
+			$line_to_print .= conditionHandling($cond);
+		}
 	}
 
 	addToSourceArray("$line_to_print:\n");
@@ -316,7 +323,7 @@ sub handleForeach {
 	$line_to_print .= " in ";
 
 	#then the difficult part, translating range
-	#ATM just considering basic example of (x..y)
+	#ATM just considering basic example of (x, y)
 	
 	$conds[1] =~ s/\(|\)//;
 	my @nums = split /\.+/, $conds[1];
@@ -324,7 +331,7 @@ sub handleForeach {
 	if ($nums[0] eq 'sys.argv[1:]') {
 		$line_to_print .= $nums[0];
 	} else {
-		$line_to_print .= "range(";
+		$line_to_print .= "xrange(";
 		$nums[1] = checkSysMod($nums[1]);
 		$nums[1]++; #pythons range function doesn't include last num
 		$line_to_print .= "$nums[0], $nums[1])";
@@ -367,7 +374,8 @@ sub addToSourceArray {
 		$python_source[$lines_python_source] .= "    ";
 		$amt_tabs--;
 	}
-	$python_source[$lines_python_source] .= $to_print;
+	$python_source[$lines_python_source++] .= $to_print;
+	
 }
 
 sub outputSource {
