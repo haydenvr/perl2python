@@ -1,12 +1,5 @@
 #!/usr/bin/perl
 
-#noticed that sometimes he wants to print something before a user inputs data
-#and in that case he uses sys.stdout.write() instead of print
-#this is only in the case that the next line is sys.stdin.readline()
-#MAYBE implement something for this, but not too vital as they are same
-#note did this: it has problems with a few other examples that fit this
-#but just use print()
-
 #currently getting examples/4/line_count.1.pl to translate properly
 
 # written by andrewt@cse.unsw.edu.au September 2013
@@ -94,7 +87,7 @@ sub handleIntegerVariables {
 			#these are cases that have been needed to be added for the examples
 			#i am only adding the necessary ones
 			if ($py_line =~ /^(\s*$variable\s*=\s*)(sys.stdin.readline\(\)\s*)[\\n]*$/) {
-				$py_line = "$1int(sys.stdin.readline())\n";
+				$py_line = "$1float(sys.stdin.readline())\n";
 			}
 		}
 		$python_source[$lines_python_source]
@@ -105,28 +98,37 @@ sub variableDec {
 	my $variable_name = $_[0];
 	my $variable_assign = $_[1];
 	if ($variable_assign =~ /\$/) {
-			#check if each item is a variable and interp
-			@assigns = split / /, $variable_assign;
-			$line_to_print = "$variable_name = ";
-			foreach $assignment (@assigns) {
-				if ($assignment eq "\<STDIN\>") {
-					handleImports("sys");
-					$assignment = "sys.stdin.readline()";
-				} elsif ($assignment =~ /\$/) {
-					$assignment =~ s/\$//;
-				}	
-				$line_to_print .= "$assignment ";
-			}
-			$line_to_print .= "\n";
-			addToSourceArray($line_to_print);
-		} elsif ($variable_assign =~ /^~/) {
-			$variable_assign =~ s/^~\s*//;
-			$variable_assign = regularExpHandling($variable_assign, $variable_name);
-			addToSourceArray("$variable_name = $variable_assign\n");
-		} else { 
-			$variable_assign = checkSysMod($variable_assign);
-			addToSourceArray("$variable_name = $variable_assign\n");
+		#check if each item is a variable and interp
+		@assigns = split / /, $variable_assign;
+		$line_to_print = "$variable_name = ";
+		foreach $assignment (@assigns) {
+			if ($assignment eq "\<STDIN\>") {
+				handleImports("sys");
+				$assignment = "sys.stdin.readline()";
+			} elsif ($assignment =~ /\$/) {
+				$assignment =~ s/\$//;
+			}	
+			$line_to_print .= "$assignment ";
 		}
+		$line_to_print .= "\n";
+		addToSourceArray($line_to_print);
+	} elsif ($variable_assign =~ /^~/) {
+		$variable_assign =~ s/^~\s*//;
+		$variable_assign = regularExpHandling($variable_assign, $variable_name);
+		addToSourceArray("$variable_name = $variable_assign\n");
+	} elsif ($variable_assign eq '') {
+		#variable dec is of form $variable++ or $variable--
+		if ($variable_name =~ s/\-\-$//) {
+			addToSourceArray("$variable_name -= 1\n"); 
+		} elsif ($variable_name =~ s/\+\+//) {
+			addToSourceArray("$variable_name += 1\n"); 
+		} else { #case that its of a different form, then can be recognised and fixed
+			addToSourceArray("#$variable_name# THIS IS NOT CODED FOR YET\n"); 
+		}
+	} else { 
+		$variable_assign = checkSysMod($variable_assign);
+		addToSourceArray("$variable_name = $variable_assign\n");
+	}
 }
 
 sub checkSysMod {
@@ -170,6 +172,7 @@ sub printFunction {
 	my $dont_add_space = 0;
 	$last_stat = $statements[$#statements];
 	$last_stat =~ s/\\n//g;
+	my $is_first_statement = 1; #need this for printing strings
 	while ($stat = shift @statements) {
 		$stat =~ s/\\n//g;
 		if ($stat =~ /^\s*\$(.*)$/) {
@@ -219,7 +222,13 @@ sub printFunction {
 				$line_to_print .= $stat.")";
 			}
 		} else {
-		#case printing a string, need to add quotes
+			#case printing a string, need to add quotes and put a comma before
+			if (($is_string == 0)&&($is_first_statement == 0)) {
+				$line_to_print =~ s/ $//; #my translater adds spaces between each statement in a print
+				$line_to_print .= ', '; #but the comma needs to be before the space
+				#only need to do this if the string is starting, which is when $is_string = 0
+				#and also don't need if it is first statement in after function call 'print'
+			}
 			$line_to_print .= "\"$stat" if $is_string == 0;
 			$line_to_print .= "$stat" if $is_string == 1;
 			$is_string = 1;
@@ -229,6 +238,7 @@ sub printFunction {
 			$line_to_print .= " ";
 		}
 		$dont_add_space = 0;
+		$is_first_statement = 0;
 	}	
 	$line_to_print .= "\"" if $is_string == 1;
 	$line_to_print .= "\n";
@@ -306,12 +316,19 @@ sub handleWhile {
 	my @conds = split /\s+/, $conds_to_trans;
 
 	foreach $cond(@conds) {
-		if ($cond eq '<>') {
+		if (($cond eq '<>')||($cond eq '<STDIN>')) {
 			#reading from STDIN/arguments, equiv of python fileinput.input()
 			#however need to use for loop and handle the import
 			$line_to_print =~ s/^while/for/;
 			$line_to_print =~ s/=/in/;
 			$cond = checkSysMod($cond);
+			#note: the above function call for <STDIN> will return 'sys.stdin.readline()' for our python
+			#translation. This unfortunately doesn't work in the context of a loop, as 'sys.stdin.readline()'
+			#returns a single string, and as such python will iterate through each character in that string
+			#and not perform any operations on any of the other strings, as they aren't called.
+			#to fix this, we need it to be returned as a file object, so we will change it to 'sys.stdin'
+			#which performs correctly in this context
+			$cond =~ s/sys\.stdin\.readline\(\)/sys\.stdin/;
 			$line_to_print .= $cond;
 		} else {
 			$line_to_print .= conditionHandling($cond);
