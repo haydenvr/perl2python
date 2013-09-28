@@ -4,8 +4,10 @@
 #and in that case he uses sys.stdout.write() instead of print
 #this is only in the case that the next line is sys.stdin.readline()
 #MAYBE implement something for this, but not too vital as they are same
+#note did this: it has problems with a few other examples that fit this
+#but just use print()
 
-#currently fixing variable declaration on line 102 to include reg exp
+#currently getting examples/4/line_count.1.pl to translate properly
 
 # written by andrewt@cse.unsw.edu.au September 2013
 # as a starting point for COMP2041/9041 assignment 
@@ -117,6 +119,10 @@ sub variableDec {
 			}
 			$line_to_print .= "\n";
 			addToSourceArray($line_to_print);
+		} elsif ($variable_assign =~ /^~/) {
+			$variable_assign =~ s/^~\s*//;
+			$variable_assign = regularExpHandling($variable_assign, $variable_name);
+			addToSourceArray("$variable_name = $variable_assign\n");
 		} else { 
 			$variable_assign = checkSysMod($variable_assign);
 			addToSourceArray("$variable_name = $variable_assign\n");
@@ -132,12 +138,22 @@ sub checkSysMod {
 		$to_check = 'sys.argv[1:]';
 		handleImports('sys');
 	} elsif ($to_check eq '<STDIN>') {
+		#NOTE: the following works, but I can't decide whether to use it		
+		#if ($python_source[$lines_python_source-1] =~ /^(\s*)print \"([^\"]*)\"/) {
+			#this happens in the examples in subset 3
+			#there'll be a prompt sent out via stdout and then the perl reads in stdin
+			#and the python translation uses the following rather than the usual print function
+		#	$python_source[$lines_python_source-1] = "$1sys.stdout.write(\"$2\")\n";
+		#}
 		$to_check = "sys.stdin.readline()";
 		handleImports('sys');
 	} elsif ($to_check eq '<>') {
 		$to_check = "fileinput.input()";
 		handleImports('fileinput')
-	}
+	} elsif ($to_check eq '$#ARGV') {
+		$to_check = "len(sys.argv) - 1";
+		handleImports('sys');
+	} 
 	return $to_check;
 }
 
@@ -161,7 +177,14 @@ sub printFunction {
 				$line_to_print .= "\"\,";
 				$is_string = 0;
 			} 
-			$line_to_print .= "$1";
+			$stat = $1;
+			if ($stat =~ /^ARGV\[\$?(.*)\]$/) {
+				$index = $1;
+				handleImports('sys');
+				$line_to_print .= "sys.argv[$index + 1]";
+			} else {
+				$line_to_print .= "$stat";
+			}
 		} elsif ($stat eq "\*") {
 			if ($is_string == 1) {
 				$line_to_print .= "\" ";
@@ -212,14 +235,22 @@ sub printFunction {
 	addToSourceArray($line_to_print);
 }
 
+#not called anywhere yet #will be passed from variableDec
 sub regularExpHandling {
-	my $to_check = $_[0];
-	
-	#check if using reg exp and which one
-	#change if true to the python alternative
-	#also call handleImports('re') if true
-
-	return $to_check;
+	my $perl_reg = $_[0]; #will be the command that follows the "=~" sign
+	my $variable = $_[1]; #the variable that's being operated on
+	#print "MY REG = ($perl_reg) and VAR = ($variable)\n";
+	if ($perl_reg =~ /^\s*s\/([^\/]+)\/([^\/]*)\/([g])/) {
+		if ($3 eq 'g') {
+			$perl_reg = "re.sub(r'$1', '$2', $variable)";
+		} else {
+			$perl_reg = "re.sub('$1', '$2', $variable)";
+		}		
+	} else {
+		$perl_reg = "#$perl_reg#NOT HANDLING THIS CASE YET";
+	}
+	handleImports('re'); #import modules for python
+	return $perl_reg;
 }
 
 sub conditionHandling {
@@ -312,19 +343,17 @@ sub handleForeach {
 	#they use a declaration and then a set of numbers which act as a range 
 	#of indexes
 	my $conds_to_trans = $_[0];
-        $line_to_print = "for ";
-
-        my @conds = split /\s+/, $conds_to_trans;
+    $line_to_print = "for ";
+    my @conds = split /\s+/, $conds_to_trans;
 
 	#first variable will just be a variable name
 	$line_to_print .= conditionHandling($conds[0]);
-
+	
 	#then need to add some python syntax
 	$line_to_print .= " in ";
 
 	#then the difficult part, translating range
 	#ATM just considering basic example of (x, y)
-	
 	$conds[1] =~ s/\(|\)//;
 	my @nums = split /\.+/, $conds[1];
 	$nums[0] = checkSysMod($nums[0]);
@@ -333,11 +362,14 @@ sub handleForeach {
 	} else {
 		$line_to_print .= "xrange(";
 		$nums[1] = checkSysMod($nums[1]);
-		$nums[1]++; #pythons range function doesn't include last num
-		$line_to_print .= "$nums[0], $nums[1])";
+		if ($nums[1] eq 'len(sys.argv) - 1') {
+			$line_to_print .= "$nums[1])";
+		} else {
+			$nums[1]++; #pythons range function doesn't include last num
+			$line_to_print .= "$nums[0], $nums[1])";
+		}		
 	}
     addToSourceArray("$line_to_print:\n");
-	
 }
 
 sub handleElse {
