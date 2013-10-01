@@ -1,16 +1,16 @@
 #!/usr/bin/perl
 
-#currently getting examples/4/line_count.1.pl to translate properly
+#at line 343
 
 # written by andrewt@cse.unsw.edu.au September 2013
 # as a starting point for COMP2041/9041 assignment 
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September 2013
-$tab = 0;
+our $tab = 0;
 our @python_source = ();
 our @imports_python_source = ();
 our %variables = [];
-$lines_python_source = 0;
+our $lines_python_source = 0;
 our $lines_imports = 0;
 while ($line = <>) {
 	#conditions TO-DO:
@@ -66,14 +66,23 @@ while ($line = <>) {
 		addToSourceArray("$1 = $1.rstrip()\n");
 	} elsif ($line =~ /\s*last;\s*$/) {
 		addToSourceArray("break\n");
+	} elsif ($line =~ /^\s*open ([^\;]*)\;\s*$/) {
+		handleOpen($1);
 	} else {
-	
 		# Lines we can't translate are turned into comments
-		
 		addToSourceArray("#$line\n");
 	}
 }
 outputSource();
+
+sub handleOpen {
+	#just assuming the basic case of reading from a file, in format of 
+	#open F, "<file_name"; and convert to F = open("file_name")
+	my @arguments = split /\s*,\s*/, $_[0];
+	$arguments[1] =~ s/^\"\<//;
+	$arguments[1] =~ s/\"$//;
+	addToSourceArray("$arguments[0] = open(\"$arguments[1]\")\n");  
+}
 
 sub handleIntegerVariables { 
 	#read in variables passed from the conditionHandling function
@@ -312,10 +321,11 @@ sub handleIf {
 sub handleWhile {
 	my $conds_to_trans = $_[0];
 	$line_to_print = "while ";
-
+	my $should_break = 0;
 	my @conds = split /\s+/, $conds_to_trans;
 
 	foreach $cond(@conds) {
+		break if $should_break == 1;
 		if (($cond eq '<>')||($cond eq '<STDIN>')) {
 			#reading from STDIN/arguments, equiv of python fileinput.input()
 			#however need to use for loop and handle the import
@@ -330,6 +340,16 @@ sub handleWhile {
 			#which performs correctly in this context
 			$cond =~ s/sys\.stdin\.readline\(\)/sys\.stdin/;
 			$line_to_print .= $cond;
+		} elsif ($cond =~ /\<[^>]*\>/) {
+			print "hi dudes i made it here!\n";
+			print "val is ($python_source[$lines_python_source - 1])\n";
+			$temp = $python_source[$lines_python_source - 1];
+			chomp $temp;
+			$temp =~ s/^[^=]+= //;
+			print "dec is ($temp)\n";
+			$lines_python_source--;
+			$line_to_print = "for line in $temp:\n";
+			$should_break = 1;
 		} else {
 			$line_to_print .= conditionHandling($cond);
 		}

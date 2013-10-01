@@ -12,3 +12,4 @@ Date    Start   Stop    Activity        	Comments
 		5:00pm	6:00pm	some filehandling	improved file handling and finished off rest of subset 3
 28/9	1:40pm	2:40pm	reg exp and for		implemented basic reg exp handling, as well as some sys function in for loops
 		4:00pm	5:00pm						improved test script and added some handling for a few examples
+01/10 	5:30pm
