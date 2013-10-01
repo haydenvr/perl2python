@@ -9,6 +9,7 @@
 our $tab = 0;
 our @python_source = ();
 our @imports_python_source = ();
+our @lists_hashes_source = (); #these are the arrays and hashes that need to be predeclared before printing @python_source
 our %variables = [];
 our $lines_python_source = 0;
 our $lines_imports = 0;
@@ -68,6 +69,7 @@ while ($line = <>) {
 		addToSourceArray("break\n");
 	} elsif ($line =~ /^\s*open ([^\;]*)\;\s*$/) {
 		handleOpen($1);
+	} elsif ($line =~ /^\s*close/) { next;
 	} else {
 		# Lines we can't translate are turned into comments
 		addToSourceArray("#$line\n");
@@ -263,8 +265,10 @@ sub regularExpHandling {
 		if ($3 eq 'g') {
 			$perl_reg = "re.sub(r'$1', '$2', $variable)";
 		} else {
-			$perl_reg = "re.sub('$1', '$2', $variable)";
+			$perl_reg = "re.sub(r'$1', '$2', $variable)";
 		}		
+	} elsif ($perl_reg =~ /^\s*\/([^\/]+)\//) {
+		$perl_reg = "re.match('$1', $variable)";
 	} else {
 		$perl_reg = "#$perl_reg#NOT HANDLING THIS CASE YET";
 	}
@@ -310,12 +314,18 @@ sub handleIf {
 	#now loop through conds and trans
 	my @conds = split /\s+/, $conds_to_trans;
 	
-	foreach $cond (@conds) {
-		$line_to_print .= conditionHandling($cond, $last);
-		$last = $cond;
+	if ($conds[1] eq '=~') {
+		$conds[0] =~ s/^\$//;
+		addToSourceArray("m = " . regularExpHandling($conds[2],$conds[0]). "\n");
+		addToSourceArray("$line_to_print\m:\n");
+	} else {
+		foreach $cond (@conds) {
+			$line_to_print .= conditionHandling($cond, $last);
+			$last = $cond;
+		}
+		addToSourceArray($line_to_print);
 	}
-	
-	addToSourceArray("$line_to_print:\n");
+
 }
 
 sub handleWhile {
@@ -341,14 +351,12 @@ sub handleWhile {
 			$cond =~ s/sys\.stdin\.readline\(\)/sys\.stdin/;
 			$line_to_print .= $cond;
 		} elsif ($cond =~ /\<[^>]*\>/) {
-			print "hi dudes i made it here!\n";
-			print "val is ($python_source[$lines_python_source - 1])\n";
 			$temp = $python_source[$lines_python_source - 1];
+			$python_source[$lines_python_source - 1] = '';				
 			chomp $temp;
 			$temp =~ s/^[^=]+= //;
-			print "dec is ($temp)\n";
 			$lines_python_source--;
-			$line_to_print = "for line in $temp:\n";
+			$line_to_print = "for line in $temp";
 			$should_break = 1;
 		} else {
 			$line_to_print .= conditionHandling($cond);
@@ -417,8 +425,8 @@ sub handleElse {
 		$line_to_print = "elif ";
  
 	         #now loop through conds and trans
-        	my @conds = split /\s+/, $1;
- 	
+        	my @conds = split /\s+/, $1;	
+		
         	foreach $cond (@conds) {
                 	$line_to_print .= conditionHandling($cond);
         	}	
