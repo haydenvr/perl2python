@@ -5,12 +5,12 @@
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September 2013
 
-#TO_DO for implementing hashes
-#variable decs DONE
-#prints DONE
-#if
-#while
-#for	
+#in reg exp handling, need to handle the case that there is variables in the reg exp to check
+#ie to handle something like this /$expression/
+
+#need to handle foreach $key (keys %hash)
+
+#need to handle $1..$9 in regexp ie /(.*)/, where $1 is the expression that matches .*
 
 our $tab = 0;
 our @python_source = ();
@@ -297,8 +297,8 @@ sub printFunction {
 sub regularExpHandling {
 	my $perl_reg = $_[0]; #will be the command that follows the "=~" sign
 	my $variable = $_[1]; #the variable that's being operated on
-	#print "MY REG = ($perl_reg) and VAR = ($variable)\n";
-	if ($perl_reg =~ /^\s*s\/([^\/]+)\/([^\/]*)\/([g])/) {
+	print "MY REG = ($perl_reg) and VAR = ($variable)\n";
+	if ($perl_reg =~ /^\s*s\/([^\/]+)\/([^\/]*)\/([g]?)/) {
 		if ($3 eq 'g') {
 			$perl_reg = "re.sub(r'$1', '$2', $variable)";
 		} else {
@@ -317,11 +317,17 @@ sub conditionHandling {
 	#function to go through conditional statements and to translate them 
 	#appropriately to python and returns the result
 	my $cond_to_check = $_[0];
-	if ($cond_to_check =~ /^\$(.*)$/) {
+	if ($cond_to_check =~ /{(.*)}/) {
+		#its a hash
+		$hash_key = $1;
+		$cond_to_check =~ s/^\$//; #need to remove perl's variable metacharacter "$"
+		return handleHash($cond_to_check,$hash_key);
+	} elsif ($cond_to_check =~ /^\$(.*)$/) {
 		#variable declaration, just remove "$"
 		return $1;
-	} elsif ($cond_to_check =~ /^\>=*|[=!]?=|\<=*|%$/) {
+	} elsif ($cond_to_check =~ /^\>=*|[=!]?=|\<=*|%|&|\||\^|~|>>|<<$/) {
 		#conditional operators that are the same in perl and python
+		#i am also including bitwise operators here as they are also the same
 		#this case here is also used to determine that a variable is an integer
 		handleIntegerVariables($_[1]); #the last variable is passed through the second parameter
 		return " $cond_to_check ";
