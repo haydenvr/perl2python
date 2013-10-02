@@ -14,5 +14,6 @@ Date    Start   Stop    Activity        	Comments
 		4:00pm	5:00pm						improved test script and added some handling for a few examples
 01/10 	7:30pm	8:00pm	
 		11:00pm	11:40pm
+02/10 	10:40am
 
 Total Time: 795min = 13hr 15min	

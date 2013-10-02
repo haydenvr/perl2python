@@ -1,24 +1,26 @@
 #!/usr/bin/perl
 
-#at line 343
-
 # written by andrewt@cse.unsw.edu.au September 2013
 # as a starting point for COMP2041/9041 assignment 
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September 2013
+
+#TO_DO for implementing hashes
+#variable decs DONE
+#prints DONE
+#if
+#while
+#for	
+
 our $tab = 0;
 our @python_source = ();
 our @imports_python_source = ();
 our @lists_hashes_source = (); #these are the arrays and hashes that need to be predeclared before printing @python_source
+our $amt_hashes = 0;
 our %variables = [];
 our $lines_python_source = 0;
 our $lines_imports = 0;
 while ($line = <>) {
-	#conditions TO-DO:
-	# 2. foreach loops DONE //kinda.. needs more functionality
-	# 3. needs a function that can check for SYS modules, ie ARGV etc.. maybe reads in a line, and returns a line which has had the appropriate changes?
-	# 5. boolean logic and string concatenation
-	# 6. range operator and when perl converts array to scalar length (context)
 	chomp $line;
 	if ($line =~ /^#!/ && $. == 1) {
 	
@@ -77,6 +79,22 @@ while ($line = <>) {
 }
 outputSource();
 
+sub handleHash {
+	my $hash_to_handle = $_[0];
+	my $hash_key = $_[1];
+	#we need to remove curly braces
+	$hash_to_handle =~ s/{.*//;
+	$hash_key = conditionHandling($hash_key);
+	$hash_to_handle = "$hash_to_handle\[$hash_key]";
+	#we also need to pre-define the hashes (by adding to @lists_hashes_source)
+	$hash_name = $hash_to_handle;
+	$hash_name =~ s/\[.*//;
+	if (!grep( /^$hash_name$/, @lists_hashes_source)) {
+		$lists_hashes_source[$amt_hashes++] = $hash_name;
+	} 
+	return $hash_to_handle;
+}
+
 sub handleOpen {
 	#just assuming the basic case of reading from a file, in format of 
 	#open F, "<file_name"; and convert to F = open("file_name")
@@ -108,7 +126,17 @@ sub handleIntegerVariables {
 sub variableDec {
 	my $variable_name = $_[0];
 	my $variable_assign = $_[1];
-	if ($variable_assign =~ /\$/) {
+	if ($variable_name =~ /{(.*)}/) {
+		#ie its a hash
+		$variable_name = handleHash($variable_name,$1);
+	}
+	if ($variable_assign =~ /{(.*)}/) {
+		#hash same as last time except on different end of declaration
+		$hash_key = $1;
+		$variable_assign =~ s/^\$//; #need to remove perl's variable metacharacter "$"
+		$variable_assign = handleHash($variable_assign,$hash_key);
+		addToSourceArray("$variable_name = $variable_assign\n");
+	} elsif ($variable_assign =~ /\$/) {
 		#check if each item is a variable and interp
 		@assigns = split / /, $variable_assign;
 		$line_to_print = "$variable_name = ";
@@ -186,7 +214,16 @@ sub printFunction {
 	my $is_first_statement = 1; #need this for printing strings
 	while ($stat = shift @statements) {
 		$stat =~ s/\\n//g;
-		if ($stat =~ /^\s*\$(.*)$/) {
+		if ($stat =~ /{(.*)}/) {
+			if ($is_string == 1) {
+				$line_to_print .= "\"\, ";
+				$is_string = 0;
+			} 
+			$hash_key = $1;
+			$stat =~ s/^\$//; #need to remove perl's variable metacharacter "$"
+			$stat = handleHash($stat,$hash_key);
+			$line_to_print .= $stat;
+		} elsif ($stat =~ /^\s*\$(.*)$/) {
 			if ($is_string == 1) {
 				$line_to_print .= "\"\,";
 				$is_string = 0;
@@ -323,7 +360,7 @@ sub handleIf {
 			$line_to_print .= conditionHandling($cond, $last);
 			$last = $cond;
 		}
-		addToSourceArray($line_to_print);
+		addToSourceArray("$line_to_print:\n");
 	}
 
 }
@@ -464,6 +501,9 @@ sub outputSource {
 		$i++	
 	}
 	print "\n" if $i != 0;
+	foreach $line (@lists_hashes_source) {
+		print "$line = ()\n";
+	}
 	foreach $line (@python_source) {
 		print $line;
 	}
