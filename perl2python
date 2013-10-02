@@ -12,6 +12,15 @@
 
 #need to handle $1..$9 in regexp ie /(.*)/, where $1 is the expression that matches .*
 
+#need to handle multiple conditions in if statements and while statements, ie if (($var)&&($var2))
+# --> logical operators
+
+#break and continue
+#?? can i do $var-- or $var++
+
+#split function
+
+#arrays and push pop unshift reverse
 our $tab = 0;
 our @python_source = ();
 our @imports_python_source = ();
@@ -325,7 +334,7 @@ sub conditionHandling {
 	} elsif ($cond_to_check =~ /^\$(.*)$/) {
 		#variable declaration, just remove "$"
 		return $1;
-	} elsif ($cond_to_check =~ /^\>=*|[=!]?=|\<=*|%|&|\||\^|~|>>|<<$/) {
+	} elsif ($cond_to_check =~ /^\>=*|[=!]?=|\<=*|%|&|\||\^|~|>>|<<|\*\*$/) {
 		#conditional operators that are the same in perl and python
 		#i am also including bitwise operators here as they are also the same
 		#this case here is also used to determine that a variable is an integer

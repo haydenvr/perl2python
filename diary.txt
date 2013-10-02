@@ -11,9 +11,9 @@ Date    Start   Stop    Activity        	Comments
 												impossible to handle certain types of strings. Also introduced some sys module handling
 		5:00pm	6:00pm	some filehandling	improved file handling and finished off rest of subset 3
 28/9	1:40pm	2:40pm	reg exp and for		implemented basic reg exp handling, as well as some sys function in for loops
-		4:00pm	5:00pm						improved test script and added some handling for a few examples
-01/10 	7:30pm	8:00pm	
-		11:00pm	11:40pm
-02/10 	10:40am
+		4:00pm	5:00pm	test script			improved test script and added some handling for a few examples
+01/10 	7:30pm	8:00pm	open funct			worked on adding open function					
+		11:00pm	11:40pm	regex and open		added more regex and open functionality
+02/10 	10:40am	12:00pm hash, bitwise		added basic hash handling, as well as a few missing things such as bitwise operators
 
-Total Time: 795min = 13hr 15min	
+Total Time: 875min = 14hr 35min	
