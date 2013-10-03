@@ -5,11 +5,6 @@
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September 2013
 
-#in reg exp handling, need to handle the case that there is variables in the reg exp to check
-#ie to handle something like this /$expression/
-
-#need to handle foreach $key (keys %hash)
-
 #need to handle $1..$9 in regexp ie /(.*)/, where $1 is the expression that matches .*
 
 #need to handle multiple conditions in if statements and while statements, ie if (($var)&&($var2))
@@ -145,6 +140,10 @@ sub variableDec {
 		$variable_assign =~ s/^\$//; #need to remove perl's variable metacharacter "$"
 		$variable_assign = handleHash($variable_assign,$hash_key);
 		addToSourceArray("$variable_name = $variable_assign\n");
+	} elsif ($variable_assign =~ /^~/) {
+		$variable_assign =~ s/^~\s*//;
+		$variable_assign = regularExpHandling($variable_assign, $variable_name);
+		addToSourceArray("$variable_name = $variable_assign\n");
 	} elsif ($variable_assign =~ /\$/) {
 		#check if each item is a variable and interp
 		@assigns = split / /, $variable_assign;
@@ -160,10 +159,6 @@ sub variableDec {
 		}
 		$line_to_print .= "\n";
 		addToSourceArray($line_to_print);
-	} elsif ($variable_assign =~ /^~/) {
-		$variable_assign =~ s/^~\s*//;
-		$variable_assign = regularExpHandling($variable_assign, $variable_name);
-		addToSourceArray("$variable_name = $variable_assign\n");
 	} elsif ($variable_assign eq '') {
 		#variable dec is of form $variable++ or $variable--
 		if ($variable_name =~ s/\-\-$//) {
@@ -306,15 +301,21 @@ sub printFunction {
 sub regularExpHandling {
 	my $perl_reg = $_[0]; #will be the command that follows the "=~" sign
 	my $variable = $_[1]; #the variable that's being operated on
-	print "MY REG = ($perl_reg) and VAR = ($variable)\n";
-	if ($perl_reg =~ /^\s*s\/([^\/]+)\/([^\/]*)\/([g]?)/) {
-		if ($3 eq 'g') {
-			$perl_reg = "re.sub(r'$1', '$2', $variable)";
+	if ($perl_reg =~ /^\s*s\/([^\/]+)\/([^\/]*)\/[g]?/) {
+		$pattern = $1;
+		$change_to = $2;
+		if ($pattern =~ s/\$//) {
+			$perl_reg = "re.sub($pattern, '$change_to', $variable)";
 		} else {
-			$perl_reg = "re.sub(r'$1', '$2', $variable)";
-		}		
+			$perl_reg = "re.sub(r'$pattern', '$change_to', $variable)";
+		}
 	} elsif ($perl_reg =~ /^\s*\/([^\/]+)\//) {
-		$perl_reg = "re.match('$1', $variable)";
+		$pattern = $1;
+		if ($pattern =~ s/\$//) {
+			$perl_reg = "re.match($pattern, $variable)";
+		} else {
+			$perl_reg = "re.match('$pattern', $variable)";
+		}
 	} else {
 		$perl_reg = "#$perl_reg#NOT HANDLING THIS CASE YET";
 	}
@@ -451,20 +452,30 @@ sub handleForeach {
 
 	#then the difficult part, translating range
 	#ATM just considering basic example of (x, y)
-	$conds[1] =~ s/\(|\)//;
-	my @nums = split /\.+/, $conds[1];
-	$nums[0] = checkSysMod($nums[0]);
-	if ($nums[0] eq 'sys.argv[1:]') {
-		$line_to_print .= $nums[0];
-	} else {
-		$line_to_print .= "xrange(";
-		$nums[1] = checkSysMod($nums[1]);
-		if ($nums[1] eq 'len(sys.argv) - 1') {
-			$line_to_print .= "$nums[1])";
+	if ($conds_to_trans =~ /keys \%([^ ]*)/) {
+		#the case that we're iterating through the keys of a hash
+		$dict_name = $1;
+		if ($conds_to_trans =~ /sort/) {
+			$line_to_print .= "sorted($dict_name.keys())";
 		} else {
-			$nums[1]++; #pythons range function doesn't include last num
-			$line_to_print .= "$nums[0], $nums[1])";
-		}		
+			$line_to_print .= "$dict_name.keys()";
+		}	
+	} else {
+		$conds[1] =~ s/\(|\)//;
+		my @nums = split /\.+/, $conds[1];
+		$nums[0] = checkSysMod($nums[0]);
+		if ($nums[0] eq 'sys.argv[1:]') {
+			$line_to_print .= $nums[0];
+		} else {
+			$line_to_print .= "xrange(";
+			$nums[1] = checkSysMod($nums[1]);
+			if ($nums[1] eq 'len(sys.argv) - 1') {
+				$line_to_print .= "$nums[1])";
+			} else {
+				$nums[1]++; #pythons range function doesn't include last num
+				$line_to_print .= "$nums[0], $nums[1])";
+			}		
+		}
 	}
     addToSourceArray("$line_to_print:\n");
 }
