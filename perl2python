@@ -10,9 +10,6 @@
 #need to handle multiple conditions in if statements and while statements, ie if (($var)&&($var2))
 # --> logical operators
 
-#break and continue
-#?? can i do $var-- or $var++
-
 #split function
 
 #arrays and push pop unshift reverse
@@ -72,6 +69,26 @@ while ($line = <>) {
 	} elsif ($line =~ /^\s*open ([^\;]*)\;\s*$/) {
 		handleOpen($1);
 	} elsif ($line =~ /^\s*close/) { next;
+	} elsif ($line =~ /last/) {
+		#perl allows the last statement to be followed by an 'if' conditional
+		if ($line =~ /if \(([^\)]+)\)\;$/) {
+			handleIf($1);
+			$tab++;
+			addToSourceArray("break\n");
+			$tab--;
+		} else {
+			addToSourceArray("break\n");
+		}
+	} elsif ($line =~ /next/) {
+		#perl allows the next statement to be followed by an 'if' conditional
+		if ($line =~ /if \(([^\)]+)\)\;$/) {
+			handleIf($1);
+			$tab++;
+			addToSourceArray("continue\n");
+			$tab--;
+		} else {
+			addToSourceArray("continue\n");
+		}
 	} else {
 		# Lines we can't translate are turned into comments
 		addToSourceArray("#$line\n");
@@ -126,7 +143,7 @@ sub handleIntegerVariables {
 sub variableDec {
 	my $variable_name = $_[0];
 	my $variable_assign = $_[1];
-	print "$variable_name = $variable_assign\n";
+	#print "$variable_name = $variable_assign\n";
 	if ($variable_assign =~ /^\$([1-9])$/) {
 		$variable_assign = "m.group($1)";
 	}
