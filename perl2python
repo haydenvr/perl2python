@@ -27,12 +27,9 @@ our $lines_imports = 0;
 while ($line = <>) {
 	chomp $line;
 	if ($line =~ /^#!/ && $. == 1) {
-	
 		# translate #! line 
-		
 		print "#!/usr/bin/python2.7 -u\n";
 	} elsif ($line =~ /^\s*#/ || $line =~ /^\s*$/) {
-	
 		# Blank & comment lines can be passed unchanged
 		addToSourceArray("$line\n");
 	} elsif ($line =~ /^\s*print\s*("*.*\s*[\\n]?\s*")*\s*\;*$/) {
@@ -42,7 +39,6 @@ while ($line = <>) {
 		#still not done, can only work when only printing variable
 		$temp = $1;
 		printFunction($temp);
-			
 	} elsif ($line =~ /^\s*\$(.+)\;$/) {
 		#declaring a variable 
 		#python just removes the dollar sign and semi-colon
@@ -130,6 +126,10 @@ sub handleIntegerVariables {
 sub variableDec {
 	my $variable_name = $_[0];
 	my $variable_assign = $_[1];
+	print "$variable_name = $variable_assign\n";
+	if ($variable_assign =~ /^\$([1-9])$/) {
+		$variable_assign = "m.group($1)";
+	}
 	if ($variable_name =~ /{(.*)}/) {
 		#ie its a hash
 		$variable_name = handleHash($variable_name,$1);
@@ -332,6 +332,8 @@ sub conditionHandling {
 		$hash_key = $1;
 		$cond_to_check =~ s/^\$//; #need to remove perl's variable metacharacter "$"
 		return handleHash($cond_to_check,$hash_key);
+	} elsif ($cond_to_check =~ /^\$([1-9])$/) {
+		return "m.group($1)";
 	} elsif ($cond_to_check =~ /^\$(.*)$/) {
 		#variable declaration, just remove "$"
 		return $1;
