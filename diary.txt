@@ -17,6 +17,6 @@ Date    Start   Stop    Activity        	Comments
 02/10 	10:40am	12:00pm hash, bitwise		added basic hash handling, as well as a few missing things such as bitwise operators
 03/10 	10:30am	11:00am	keys, variables in regex
 		8:45pm	9:20pm	added next and last
-04/10	9:40am
+04/10	9:40am	11:00am	added in handling for multiple conditional operators in if and while statements and support for $hash{$key}++ 
 
-Total Time: 940min = 15hr 40min	
+Total Time: 1020min = 17hr 00min	
