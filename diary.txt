@@ -18,5 +18,6 @@ Date    Start   Stop    Activity        	Comments
 03/10 	10:30am	11:00am	keys, variables in regex
 		8:45pm	9:20pm	added next and last
 04/10	9:40am	11:00am	added in handling for multiple conditional operators in if and while statements and support for $hash{$key}++ 
+		5:05pm	6:00pm	added capabilities for handling more arrays/lists
 
-Total Time: 1020min = 17hr 00min	
+Total Time: 1075min = 17hr 55min	

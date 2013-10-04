@@ -5,6 +5,8 @@
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September 2013
 
+#fixing implementation of array.append and $array[$i++]
+
 #split function (happens in variable dec)
 
 #double hashes? ??
@@ -14,8 +16,10 @@
 our $tab = 0;
 our @python_source = ();
 our @imports_python_source = ();
-our @lists_hashes_source = (); #these are the arrays and hashes that need to be predeclared before printing @python_source
+our @hashes_source = (); #these are the arrays and hashes that need to be predeclared before printing @python_source
+our @lists_source = ();
 our $amt_hashes = 0;
+our $amt_lists = 0;
 our %variables = [];
 our $lines_python_source = 0;
 our $lines_imports = 0;
@@ -96,11 +100,11 @@ sub handleHash {
 	$hash_to_handle =~ s/{.*//;
 	$hash_key = conditionHandling($hash_key);
 	$hash_to_handle = "$hash_to_handle\[$hash_key]";
-	#we also need to pre-define the hashes (by adding to @lists_hashes_source)
+	#we also need to pre-define the hashes (by adding to @hashes_source)
 	$hash_name = $hash_to_handle;
 	$hash_name =~ s/\[.*//;
-	if (!grep( /^$hash_name$/, @lists_hashes_source)) {
-		$lists_hashes_source[$amt_hashes++] = $hash_name;
+	if (!grep( /^$hash_name$/, @hashes_source)) {
+		$hashes_source[$amt_hashes++] = $hash_name;
 	} 
 	return $hash_to_handle;
 }
@@ -133,12 +137,30 @@ sub handleIntegerVariables {
 	}
 }
 
+sub handleArray {
+	my $list = $_[0];
+	my $extra = '';
+	$list =~ s/\[(.*)\]//;
+	my $variable = $1;
+	$variable = conditionHandling($variable);
+	if ($variable =~ s/\+\+//) {
+		$extra = "CUTMEHERE$variable += 1"; 
+	}
+	if (!grep( /^$list$/, @list_source)) {
+		$list_source[$amt_lists++] = $list;
+	} 
+	return "$list.append\($variable\)$extra";
+}
+
 sub variableDec {
 	my $variable_name = $_[0];
 	my $variable_assign = $_[1];
-	#print "$variable_name = $variable_assign\n";
 	if ($variable_assign =~ /^\$([1-9])$/) {
 		$variable_assign = "m.group($1)";
+	}
+	if ($variable_name =~ /\[(.*)\]/) {
+		$variable_name = handleArray($variable_name);
+		($variable_name, $extra) = split /CUTMEHERE/,$variable_name;
 	}
 	if ($variable_name =~ /{(.*)}(.*)/) {
 		#ie its a hash
@@ -157,6 +179,7 @@ sub variableDec {
 		addToSourceArray("$variable_name = $variable_assign\n");
 	} elsif ($variable_assign =~ /\$/) {
 		#check if each item is a variable and interp
+		#print "var ass ($variable_assign)\n";
 		@assigns = split / /, $variable_assign;
 		$line_to_print = "$variable_name = ";
 		foreach $assignment (@assigns) {
@@ -172,7 +195,6 @@ sub variableDec {
 		$line_to_print .= "\n";
 		addToSourceArray($line_to_print);
 	} elsif ($variable_assign eq '') {
-		print "hello my name is hayden and the variable is $variable_name\n";
 		#variable dec is of form $variable++ or $variable--
 		#also need to check if these are hashes, if so the variable name will
 		#already by translated to pythons '[]' form
@@ -216,6 +238,9 @@ sub variableDec {
 	} else { 
 		$variable_assign = checkSysMod($variable_assign);
 		addToSourceArray("$variable_name = $variable_assign\n");
+	}
+	if ($extra =~ /.+/) {
+		addToSourceArray("$extra\n");
 	}
 }
 
@@ -449,9 +474,9 @@ sub handleWhile {
 	my $conds_to_trans = $_[0];
 	$conds_to_trans =~ s/^\(//;
 	$conds_to_trans =~ s/\)$//;
-	print "($conds_to_trans)\n";
+	#print "($conds_to_trans)\n";
 	my @a = split /\(|\)/,$conds_to_trans;
-	print "@a\n";
+	#print "@a\n";
 	$line_to_print = "while ";
 	while (my $condi = shift @a) {
 		#got to check if its a logical operator
@@ -537,6 +562,10 @@ sub handleForeach {
 		} else {
 			$line_to_print .= "$dict_name.keys()";
 		}	
+	} elsif ($conds_to_trans =~ s/\@([^ ]+)//) {
+		#case its reading the elements in an array
+		#then it's 'for line in array'
+		$line_to_print .= "$1";
 	} else {
 		$conds[1] =~ s/\(|\)//;
 		my @nums = split /\.+/, $conds[1];
@@ -599,8 +628,11 @@ sub outputSource {
 		$i++	
 	}
 	print "\n" if $i != 0;
-	foreach $line (@lists_hashes_source) {
+	foreach $line (@hashes_source) {
 		print "$line = {}\n";
+	}
+	foreach $line (@list_source) {
+		print "$line = []\n";
 	}
 	foreach $line (@python_source) {
 		print $line;
