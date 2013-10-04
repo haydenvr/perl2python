@@ -5,12 +5,9 @@
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September 2013
 
-#need to handle $1..$9 in regexp ie /(.*)/, where $1 is the expression that matches .*
+#split function (happens in variable dec)
 
-#need to handle multiple conditions in if statements and while statements, ie if (($var)&&($var2))
-# --> logical operators
-
-#split function
+#double hashes? ??
 
 #arrays and push pop unshift reverse
 our $tab = 0;
@@ -32,8 +29,6 @@ while ($line = <>) {
 	} elsif ($line =~ /^\s*print\s*("*.*\s*[\\n]?\s*")*\s*\;*$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
-		#TO-DO: need to consider case of variablie interpolation
-		#still not done, can only work when only printing variable
 		$temp = $1;
 		printFunction($temp);
 	} elsif ($line =~ /^\s*\$(.+)\;$/) {
@@ -43,8 +38,6 @@ while ($line = <>) {
 		variableDec($a,$temp);	
  	} elsif ($line =~ /^\s*if\s*\((.*)\)\s*\{\s*$/) {
 		#if condition
-		#NOT COMPLETE
-		#needs variable interp
 		handleIf($1);
 		$tab++;
 	} elsif ($line =~ /^\s*while\s*\((.*)\)\s*\{\s*$/) {
@@ -57,7 +50,6 @@ while ($line = <>) {
 		$tab++;
 	} elsif ($line =~ /^\s*\}\s*.*\s*$/) {
 		#catch the end of a loop or similar statement with a "}"
-		#WON'T work if there is anything else in the line, ie a elsif stat
 		$tab--;
 		$result = handleElse($line); # =1 when else, =0 when normal
 		$tab += $result;
@@ -147,9 +139,10 @@ sub variableDec {
 	if ($variable_assign =~ /^\$([1-9])$/) {
 		$variable_assign = "m.group($1)";
 	}
-	if ($variable_name =~ /{(.*)}/) {
+	if ($variable_name =~ /{(.*)}(.*)/) {
 		#ie its a hash
-		$variable_name = handleHash($variable_name,$1);
+		my $potential_following = $2;
+		$variable_name = handleHash($variable_name,$1).$potential_following;
 	}
 	if ($variable_assign =~ /{(.*)}/) {
 		#hash same as last time except on different end of declaration
@@ -172,16 +165,50 @@ sub variableDec {
 			} elsif ($assignment =~ /\$/) {
 				$assignment =~ s/\$//;
 			}	
+			$assignment =~ s/length/len/; #convert all length() funcs to len() 
 			$line_to_print .= "$assignment ";
 		}
 		$line_to_print .= "\n";
 		addToSourceArray($line_to_print);
 	} elsif ($variable_assign eq '') {
+		print "hello my name is hayden and the variable is $variable_name\n";
 		#variable dec is of form $variable++ or $variable--
+		#also need to check if these are hashes, if so the variable name will
+		#already by translated to pythons '[]' form
 		if ($variable_name =~ s/\-\-$//) {
-			addToSourceArray("$variable_name -= 1\n"); 
-		} elsif ($variable_name =~ s/\+\+//) {
-			addToSourceArray("$variable_name += 1\n"); 
+			if ($variable_name =~ /(.*)\[(.*)\]/) {
+				#perl lets you just add or subtract from hashes regardless of if they're defined
+				#python makes you first check if its defined
+				my $key = $2;
+				my $hash = $1;
+				addToSourceArray("if $key in $hash:\n");
+				$tab++;
+				addToSourceArray("$variable_name -= 1\n");
+				$tab--;
+				addToSourceArray("else:\n");
+				$tab++;
+				addToSourceArray("$variable_name = -1\n");
+				$tab--;
+			} else {
+				addToSourceArray("$variable_name -= 1\n"); 
+			}
+		} elsif ($variable_name =~ s/\+\+//) { 
+			if ($variable_name =~ /(.*)\[(.*)\]/) {
+				#perl lets you just add or subtract from hashes regardless of if they're defined
+				#python makes you first check if its defined
+				my $key = $2;
+				my $hash = $1;
+				addToSourceArray("if $key in $hash:\n");
+				$tab++;
+				addToSourceArray("$variable_name += 1\n");
+				$tab--;
+				addToSourceArray("else:\n");
+				$tab++;
+				addToSourceArray("$variable_name = 1\n");
+				$tab--;
+			} else {
+				addToSourceArray("$variable_name += 1\n"); 
+			}
 		} else { #case that its of a different form, then can be recognised and fixed
 			addToSourceArray("#$variable_name# THIS IS NOT CODED FOR YET\n"); 
 		}
@@ -321,14 +348,14 @@ sub regularExpHandling {
 	if ($perl_reg =~ /^\s*s\/([^\/]+)\/([^\/]*)\/[g]?/) {
 		$pattern = $1;
 		$change_to = $2;
-		if ($pattern =~ s/\$//) {
+		if ($pattern =~ s/\$(.+)/$1/) {
 			$perl_reg = "re.sub($pattern, '$change_to', $variable)";
 		} else {
 			$perl_reg = "re.sub(r'$pattern', '$change_to', $variable)";
 		}
 	} elsif ($perl_reg =~ /^\s*\/([^\/]+)\//) {
 		$pattern = $1;
-		if ($pattern =~ s/\$//) {
+		if ($pattern =~ s/\$(.+)/$1/) { #this is removing the end of line metacharacter
 			$perl_reg = "re.match($pattern, $variable)";
 		} else {
 			$perl_reg = "re.match('$pattern', $variable)";
@@ -349,6 +376,9 @@ sub conditionHandling {
 		$hash_key = $1;
 		$cond_to_check =~ s/^\$//; #need to remove perl's variable metacharacter "$"
 		return handleHash($cond_to_check,$hash_key);
+	} elsif ($cond_to_check =~ /^\s*length\(([^\)]+)\)\s*/) {
+		$variable = $1;
+		return "len(".conditionHandling($variable).")";
 	} elsif ($cond_to_check =~ /^\$([1-9])$/) {
 		return "m.group($1)";
 	} elsif ($cond_to_check =~ /^\$(.*)$/) {
@@ -381,60 +411,88 @@ sub handleIf {
 	#function for handling if statements, mainly just changes curly brackets
 	#to colon, and translates the condition statement
 	my $conds_to_trans = $_[0];
+	$conds_to_trans =~ s/^\(//;
+	$conds_to_trans =~ s/\)$//;
+	print "($conds_to_trans)\n";
+	my @a = split /\(|\)/,$conds_to_trans;
+	print "@a\n";
 	$line_to_print = "if ";
-
-	#now loop through conds and trans
-	my @conds = split /\s+/, $conds_to_trans;
-	
-	if ($conds[1] eq '=~') {
-		$conds[0] =~ s/^\$//;
-		addToSourceArray("m = " . regularExpHandling($conds[2],$conds[0]). "\n");
-		addToSourceArray("$line_to_print\m:\n");
-	} else {
-		foreach $cond (@conds) {
-			$line_to_print .= conditionHandling($cond, $last);
-			$last = $cond;
+	while (my $condi = shift @a) {
+		#got to check if its a logical operator
+		if ($condi =~ /^\&\&$/ ) {
+			$line_to_print .= ' and ';
+			next;
+		} elsif ($condi =~ /^\|\|$/) {
+			$line_to_print .= ' or ';
+			next;
 		}
-		addToSourceArray("$line_to_print:\n");
+		#now go through conds and trans
+		my @conds = split /\s+/, $condi;
+	
+		if ($conds[1] eq '=~') {
+			$conds[0] =~ s/^\$//;
+			addToSourceArray("m = " . regularExpHandling($conds[2],$conds[0]). "\n");
+			$line_to_print .= 'm';
+		} else {
+			foreach $cond (@conds) {
+				$line_to_print .= conditionHandling($cond, $last);
+				$last = $cond;
+			}
+			
+		}
 	}
-
+	addToSourceArray("$line_to_print:\n");
 }
 
 sub handleWhile {
 	my $conds_to_trans = $_[0];
+	$conds_to_trans =~ s/^\(//;
+	$conds_to_trans =~ s/\)$//;
+	print "($conds_to_trans)\n";
+	my @a = split /\(|\)/,$conds_to_trans;
+	print "@a\n";
 	$line_to_print = "while ";
-	my $should_break = 0;
-	my @conds = split /\s+/, $conds_to_trans;
-
-	foreach $cond(@conds) {
-		break if $should_break == 1;
-		if (($cond eq '<>')||($cond eq '<STDIN>')) {
-			#reading from STDIN/arguments, equiv of python fileinput.input()
-			#however need to use for loop and handle the import
-			$line_to_print =~ s/^while/for/;
-			$line_to_print =~ s/=/in/;
-			$cond = checkSysMod($cond);
-			#note: the above function call for <STDIN> will return 'sys.stdin.readline()' for our python
-			#translation. This unfortunately doesn't work in the context of a loop, as 'sys.stdin.readline()'
-			#returns a single string, and as such python will iterate through each character in that string
-			#and not perform any operations on any of the other strings, as they aren't called.
-			#to fix this, we need it to be returned as a file object, so we will change it to 'sys.stdin'
-			#which performs correctly in this context
-			$cond =~ s/sys\.stdin\.readline\(\)/sys\.stdin/;
-			$line_to_print .= $cond;
-		} elsif ($cond =~ /\<[^>]*\>/) {
-			$temp = $python_source[$lines_python_source - 1];
-			$python_source[$lines_python_source - 1] = '';				
-			chomp $temp;
-			$temp =~ s/^[^=]+= //;
-			$lines_python_source--;
-			$line_to_print = "for line in $temp";
-			$should_break = 1;
-		} else {
-			$line_to_print .= conditionHandling($cond);
+	while (my $condi = shift @a) {
+		#got to check if its a logical operator
+		if ($condi =~ /^\&\&$/ ) {
+			$line_to_print .= ' and ';
+			next;
+		} elsif ($condi =~ /^\|\|$/) {
+			$line_to_print .= ' or ';
+			next;
 		}
-	}
+		my $should_break = 0;
+		my @conds = split /\s+/, $condi;
 
+		foreach $cond(@conds) {
+			break if $should_break == 1;
+			if (($cond eq '<>')||($cond eq '<STDIN>')) {
+				#reading from STDIN/arguments, equiv of python fileinput.input()
+				#however need to use for loop and handle the import
+				$line_to_print =~ s/^while/for/;
+				$line_to_print =~ s/=/in/;
+				$cond = checkSysMod($cond);
+				#note: the above function call for <STDIN> will return 'sys.stdin.readline()' for our python
+				#translation. This unfortunately doesn't work in the context of a loop, as 'sys.stdin.readline()'
+				#returns a single string, and as such python will iterate through each character in that string
+				#and not perform any operations on any of the other strings, as they aren't called.
+				#to fix this, we need it to be returned as a file object, so we will change it to 'sys.stdin'
+				#which performs correctly in this context
+				$cond =~ s/sys\.stdin\.readline\(\)/sys\.stdin/;
+				$line_to_print .= $cond;
+			} elsif ($cond =~ /\<[^>]*\>/) {
+				$temp = $python_source[$lines_python_source - 1];
+				$python_source[$lines_python_source - 1] = '';				
+				chomp $temp;
+				$temp =~ s/^[^=]+= //;
+				$lines_python_source--;
+				$line_to_print = "for line in $temp";
+				$should_break = 1;
+			} else {
+				$line_to_print .= conditionHandling($cond);
+			}
+		}	
+	}
 	addToSourceArray("$line_to_print:\n");
 }
 
@@ -470,7 +528,6 @@ sub handleForeach {
 	$line_to_print .= " in ";
 
 	#then the difficult part, translating range
-	#ATM just considering basic example of (x, y)
 	if ($conds_to_trans =~ /keys \%([^ ]*)/) {
 		#the case that we're iterating through the keys of a hash
 		$dict_name = $1;
@@ -505,14 +562,11 @@ sub handleElse {
 	if ($cond_to_handle =~ /^\s*\}\s*elsif\s*\((.*)\)\s*\{\s*$/) {
 		#case that it is an elsif statement
 		$line_to_print = "elif ";
- 
 	         #now loop through conds and trans
         	my @conds = split /\s+/, $1;	
-		
         	foreach $cond (@conds) {
                 	$line_to_print .= conditionHandling($cond);
         	}	
-
         	addToSourceArray("$line_to_print:\n");
 		return 1;
 	} elsif ($cond_to_handle =~ /^\s*\}\s*else\s*\{\s*$/) {
@@ -522,7 +576,6 @@ sub handleElse {
 	} else {
 		return 0; #case its the end
 	}
-
 	return $result;
 }
 
@@ -534,7 +587,6 @@ sub addToSourceArray {
 		$amt_tabs--;
 	}
 	$python_source[$lines_python_source++] .= $to_print;
-	
 }
 
 sub outputSource {
@@ -547,7 +599,7 @@ sub outputSource {
 	}
 	print "\n" if $i != 0;
 	foreach $line (@lists_hashes_source) {
-		print "$line = ()\n";
+		print "$line = {}\n";
 	}
 	foreach $line (@python_source) {
 		print $line;
