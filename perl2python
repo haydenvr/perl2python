@@ -149,18 +149,23 @@ sub handleArray {
 	if (!grep( /^$list$/, @list_source)) {
 		$list_source[$amt_lists++] = $list;
 	} 
-	return "$list.append\($variable\)$extra";
+	return "$list.append\($extra";
 }
 
 sub variableDec {
 	my $variable_name = $_[0];
 	my $variable_assign = $_[1];
+	my $using_array = 0;
 	if ($variable_assign =~ /^\$([1-9])$/) {
 		$variable_assign = "m.group($1)";
 	}
 	if ($variable_name =~ /\[(.*)\]/) {
 		$variable_name = handleArray($variable_name);
 		($variable_name, $extra) = split /CUTMEHERE/,$variable_name;
+		$using_array = 1;
+		if ($extra =~ /.+/) {
+			addToSourceArray("$extra\n");
+		}
 	}
 	if ($variable_name =~ /{(.*)}(.*)/) {
 		#ie its a hash
@@ -172,16 +177,26 @@ sub variableDec {
 		$hash_key = $1;
 		$variable_assign =~ s/^\$//; #need to remove perl's variable metacharacter "$"
 		$variable_assign = handleHash($variable_assign,$hash_key);
-		addToSourceArray("$variable_name = $variable_assign\n");
+		if ($using_array == 1) {
+			addToSourceArray("$variable_name$variable_assign)\n");
+		} else {
+			addToSourceArray("$variable_name = $variable_assign\n");
+		}
 	} elsif ($variable_assign =~ /^~/) {
 		$variable_assign =~ s/^~\s*//;
 		$variable_assign = regularExpHandling($variable_assign, $variable_name);
-		addToSourceArray("$variable_name = $variable_assign\n");
+		if ($using_array == 1) {
+			addToSourceArray("$variable_name$variable_assign)\n");
+		} else {
+			addToSourceArray("$variable_name = $variable_assign\n");
+		}
 	} elsif ($variable_assign =~ /\$/) {
 		#check if each item is a variable and interp
 		#print "var ass ($variable_assign)\n";
 		@assigns = split / /, $variable_assign;
-		$line_to_print = "$variable_name = ";
+		my $line_to_print = '';
+		#$line_to_print = "$variable_name = ";
+		$i = 0;
 		foreach $assignment (@assigns) {
 			if ($assignment eq "\<STDIN\>") {
 				handleImports("sys");
@@ -190,10 +205,16 @@ sub variableDec {
 				$assignment =~ s/\$//;
 			}	
 			$assignment =~ s/length/len/; #convert all length() funcs to len() 
-			$line_to_print .= "$assignment ";
+			$line_to_print .= "$assignment";
+			if ($i < $#assigns) { $line_to_print .= " "; }
+			$i++
 		}
-		$line_to_print .= "\n";
-		addToSourceArray($line_to_print);
+		#$line_to_print .= "\n";
+		if ($using_array == 1) {
+			addToSourceArray("$variable_name$line_to_print)\n");
+		} else {
+			addToSourceArray("$variable_name = $line_to_print\n");
+		}
 	} elsif ($variable_assign eq '') {
 		#variable dec is of form $variable++ or $variable--
 		#also need to check if these are hashes, if so the variable name will
@@ -237,10 +258,11 @@ sub variableDec {
 		}
 	} else { 
 		$variable_assign = checkSysMod($variable_assign);
-		addToSourceArray("$variable_name = $variable_assign\n");
-	}
-	if ($extra =~ /.+/) {
-		addToSourceArray("$extra\n");
+		if ($using_array == 1) {
+			addToSourceArray("$variable_name$variable_assign)\n");
+		} else {
+			addToSourceArray("$variable_name = $variable_assign\n");
+		}
 	}
 }
 
@@ -439,9 +461,9 @@ sub handleIf {
 	my $conds_to_trans = $_[0];
 	$conds_to_trans =~ s/^\(//;
 	$conds_to_trans =~ s/\)$//;
-	print "($conds_to_trans)\n";
+	#print "($conds_to_trans)\n";
 	my @a = split /\(|\)/,$conds_to_trans;
-	print "@a\n";
+	#print "@a\n";
 	$line_to_print = "if ";
 	while (my $condi = shift @a) {
 		#got to check if its a logical operator
