@@ -22,5 +22,6 @@ Date    Start   Stop    Activity        		Comments
 		8:00pm	8.25pm 	finished append to lists func
 07/10	12:50pm	2:00pm		fixed bug with comments
 		2:30pm	3.10pm	trying to fix variable dec
-		4:40pm
-Total Time: 1210min = 20hr 10min	
+		4:40pm	6:00pm	implemented more fixes including split in variable dec
+
+Total Time: 1290min = 21hr 30min	

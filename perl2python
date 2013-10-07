@@ -6,14 +6,13 @@
 # edited by hwav057@cse.unsw.edu.au for more functionality September and October 2013
 
 #Do in order:
-#3. need to do simple uses of printf in perl
-#4. split function (happens in variable dec)
-#5. range things such as 1..3
-#5. arrays and push pop unshift reverse
-#6. need to handle @array = <STDIN> or @array = <F>
-#7. need to handle print "@array" and also note that print "@array hi there this is a message\n"
-#8. need to be able to alter existing array elements, and use them?
-#9. double hashes? ??
+#??. split function (happens in variable dec) !!!!implemented successfully in variable dec, not sure where else
+#1. arrays and push pop unshift reverse
+#2. need to handle @array = <STDIN> or @array = <F>
+#3. need to handle print "@array" and also note that print "@array hi there this is a message\n"
+#4. need to be able to alter existing array elements, and use them?
+#5. need to do simple uses of printf in perl
+#6. double hashes? ??
 
 our $tab = 0;
 our @python_source = ();
@@ -133,6 +132,12 @@ sub handleOpen {
 	addToSourceArray("$arguments[0] = open(\"$arguments[1]\")\n");  
 }
 
+sub handleSplit {
+	my $delimeter = $_[0];
+	my $variable = $_[1];
+	return "$variable.split('$delimeter')";
+}
+
 sub handleIntegerVariables { 
 	#read in variables passed from the conditionHandling function
 	#and determine if it is a variable or constant
@@ -173,6 +178,11 @@ sub variableDec {
 	my $using_array = 0;
 	if ($variable_assign =~ /^\$([1-9])$/) {
 		$variable_assign = "m.group($1)";
+	}
+	if ($variable_assign =~ s/split\s*\/(.*)\/\,\s*\$([^ \.]+)/FIXME/) {
+		my $fix = handleSplit($1,$2);
+		$fix =~ s/\./LEGITDOT/;
+		$variable_assign =~ s/FIXME/$fix/;
 	}
 	if ($variable_name =~ /\[(.*)\]/) {
 		$variable_name = handleArray($variable_name);
@@ -284,6 +294,7 @@ sub variableDec {
 		$variable_assign =~ s/\$//g;
 		$line_to_print .= "$variable_assign";
 		
+		$line_to_print =~ s/LEGITDOT/\./;
 		#$line_to_print .= "\n";
 		if ($using_array == 1) {
 			addToSourceArray("$variable_name$line_to_print)\n");
