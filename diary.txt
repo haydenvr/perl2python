@@ -23,5 +23,5 @@ Date    Start   Stop    Activity        		Comments
 07/10	12:50pm	2:00pm		fixed bug with comments
 		2:30pm	3.10pm	trying to fix variable dec
 		4:40pm	6:00pm	implemented more fixes including split in variable dec
-
-Total Time: 1290min = 21hr 30min	
+		10:00pm	12:10am	worked on array functions (shift unshift pop push) and arrayDec's such as '@a = <STDIN>' and also printing arrays ie 'print "@arr"'
+Total Time: 1420min = 23hr 40min	

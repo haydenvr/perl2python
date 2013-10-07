@@ -6,13 +6,18 @@
 # edited by hwav057@cse.unsw.edu.au for more functionality September and October 2013
 
 #Do in order:
-#??. split function (happens in variable dec) !!!!implemented successfully in variable dec, not sure where else
-#1. arrays and push pop unshift reverse
-#2. need to handle @array = <STDIN> or @array = <F>
-#3. need to handle print "@array" and also note that print "@array hi there this is a message\n"
+#??. split function (happens in variable dec) !!!!implemented successfully in variable dec, not sure where else (need with arrays)
+#1. arrays and push pop unshift reverse !done pop and shift
+###should add pop and shift to condition handling and just delete declaration ie the 'a = ' bit
+#2. need to handle @array = <STDIN> or @array = <F> !done @array = <STDIN>
 #4. need to be able to alter existing array elements, and use them?
-#5. need to do simple uses of printf in perl
-#6. double hashes? ??
+#5. need to fix regex handling
+#6. need to do simple uses of printf in perl
+#7. double hashes? ??
+
+#note trans of while ($line = pop @arr) { print "$line\n"; }
+#is for line in reversed(arr):
+#		print line
 
 our $tab = 0;
 our @python_source = ();
@@ -93,6 +98,8 @@ while ($line = <>) {
 		} else {
 			addToSourceArray("continue\n");
 		}
+	} elsif ($line =~ /^\@(.+)\s*\=\s+(.+)\;\s*/) {
+		handleArrayDec($1,$2);
 	} else {
 		# Lines we can't translate are turned into comments
 		print "HI\n";
@@ -106,6 +113,24 @@ while ($line = <>) {
 	}
 }
 outputSource();
+
+sub handleArrayDec {
+	my $array = $_[0];	
+	my $assign = $_[1];
+	$array =~ s/ //g;
+	if (!grep( /^$array$/, @list_source)) {
+		$list_source[$amt_lists++] = $array;
+	} 
+	if ($assign eq '<STDIN>') {
+		addToSourceArray("for line in sys.stdin:\n");
+		$tab++;
+		addToSourceArray("$array.append(line)\n");
+		$tab--;
+		handleImports('sys');
+	} else {
+		addToSourceArray("#$array = $assign NOT HANDLED YET handleArrayDec\n");
+	}
+}
 
 sub handleHash {
 	my $hash_to_handle = $_[0];
@@ -130,6 +155,40 @@ sub handleOpen {
 	$arguments[1] =~ s/^\"\<//;
 	$arguments[1] =~ s/\"$//;
 	addToSourceArray("$arguments[0] = open(\"$arguments[1]\")\n");  
+}
+
+sub handleArrayAdd {
+	#operations on arrays where an object is added to list
+	my $input_to_handle = $_[0];
+	my $assign = $_[1];
+	print "in : $input_to_handle\n out: $assign\n";
+	my $arr_name = $input_to_handle;
+	$arr_name =~ s/\@([^ ]+)//;
+	$arr_name = $1;
+	print "this should be arr name ($arr_name)\n";
+	if ($input_to_handle =~ /push/) {
+		return "$arr_name.append($assign)";
+	} elsif ($input_to_handle =~ /unshift/) {
+		return "$arr_name.insert($assign)";
+	} else {
+		return "#$input_to_handle handleArrayPush: not handled\n";
+	}
+}
+
+sub handleArrayTake {
+	#operations on arrays where an object is taken from list
+	my $input_to_handle = $_[0];
+	my $assign = $_[1];
+	my $arr_name = $input_to_handle;
+	$arr_name =~ s/\@([^ ]+)//;
+	$arr_name = $1;
+	if ($input_to_handle =~ /pop/) {
+		return "$assign = $arr_name.pop()";
+	} elsif ($input_to_handle =~ /shift/) {
+		return "$assign = $arr_name.pop(0)"; 
+	} else {
+		return "#$input_to_handle handleArrayPull: not handled\n";
+	}
 }
 
 sub handleSplit {
@@ -175,6 +234,7 @@ sub handleArray {
 sub variableDec {
 	my $variable_name = $_[0];
 	my $variable_assign = $_[1];
+	$variable_name =~ s/\./\+/;
 	my $using_array = 0;
 	if ($variable_assign =~ /^\$([1-9])$/) {
 		$variable_assign = "m.group($1)";
@@ -207,6 +267,8 @@ sub variableDec {
 		} else {
 			addToSourceArray("$variable_name = $variable_assign\n");
 		}
+	} elsif ($variable_assign =~ /\@/) {
+		addToSourceArray(handleArrayTake($variable_assign,$variable_name) . "\n");
 	} elsif ($variable_assign =~ /^~/) {
 		$variable_assign =~ s/^~\s*//;
 		$variable_assign = regularExpHandling($variable_assign, $variable_name);
@@ -263,6 +325,7 @@ sub variableDec {
 		$variable_assign =~ s/length\((.*)\)/len\($1\)/; #convert all length() funcs to len() 
 		$variable_assign =~ s/\s?\.\s?/ \+ /g;
 		$variable_assign =~ s/\"\$([a-zA-Z]+)\"/$1/g;
+		my $to_add = '';
 		$quote = 0;
 		$variable = 0;
 		foreach $letter (split //,$variable_assign) {
@@ -292,14 +355,14 @@ sub variableDec {
 		}
 		$variable_assign = $to_add;
 		$variable_assign =~ s/\$//g;
-		$line_to_print .= "$variable_assign";
-		
-		$line_to_print =~ s/LEGITDOT/\./;
+		#$line_to_print .= "$variable_assign";
+		undef $letter;
+		$variable_assign =~ s/LEGITDOT/\./;
 		#$line_to_print .= "\n";
 		if ($using_array == 1) {
-			addToSourceArray("$variable_name$line_to_print)\n");
+			addToSourceArray("$variable_name$variable_assign)\n");
 		} else {
-			addToSourceArray("$variable_name = $line_to_print\n");
+			addToSourceArray("$variable_name= $variable_assign\n");
 		}
 	}
 }
@@ -340,15 +403,33 @@ sub printFunction {
 	#cant handle multiple strings
 	$to_check =~ s/\"//g; #remove trailing ""
 	@statements = split / *\, *| +/, $to_check;
-	$line_to_print = "print ";
 	my $is_string = 0;
 	my $dont_add_space = 0;
 	$last_stat = $statements[$#statements];
 	$last_stat =~ s/\\n//g;
 	my $is_first_statement = 1; #need this for printing strings
+	my $first_stat = $stat[0];
 	while ($stat = shift @statements) {
+		if ($is_first_statement == 1) {
+			$line_to_print = "print ";
+			$is_first_statement = 0;
+		}
 		$stat =~ s/\\n//g;
-		if ($stat =~ /{(.*)}/) {
+		if ($stat =~ /\@([A-Za-z]+)/) {
+			my $array_handling = $1;
+			if ($is_first_statement == 0) {
+				$line_to_print .= "\"" if $is_string == 1;
+				$line_to_print .= "\n";
+				addToSourceArray($line_to_print);
+			}
+			addToSourceArray("for line in $array_handling:\n");
+			$tab++;
+			addToSourceArray("print line,\n");
+			$tab--;
+			$line_to_print = '';
+			$is_string = 0;
+			$is_first_statement = 1;
+		} elsif ($stat =~ /{(.*)}/) {
 			if ($is_string == 1) {
 				$line_to_print .= "\"\, ";
 				$is_string = 0;
@@ -405,7 +486,7 @@ sub printFunction {
 			}
 		} else {
 			#case printing a string, need to add quotes and put a comma before
-			if (($is_string == 0)&&($is_first_statement == 0)) {
+			if (($is_string == 0)&&($line_to_print ne 'print ')) {#&&($stat eq $first_stat)) {
 				$line_to_print =~ s/ $//; #my translater adds spaces between each statement in a print
 				$line_to_print .= ', '; #but the comma needs to be before the space
 				#only need to do this if the string is starting, which is when $is_string = 0
@@ -420,7 +501,7 @@ sub printFunction {
 			$line_to_print .= " ";
 		}
 		$dont_add_space = 0;
-		$is_first_statement = 0;
+		#$is_first_statement = 0;
 	}	
 	$line_to_print .= "\"" if $is_string == 1;
 	$line_to_print .= "\n";
@@ -555,41 +636,47 @@ sub handleWhile {
 			next;
 		}
 		my $should_break = 0;
-		my @conds = split /\s+/, $condi;
+		if ($condi =~ /\@/) {
+			(my $assign, my $op) = split /\=/,$condi;
+			$cond_to_check = handleArrayTake($op, $assign);
+			$line_to_print .= $cond_to_check;
+		} else {
+			my @conds = split /\s+/, $condi;
 
-		foreach $cond(@conds) {
-			break if $should_break == 1;
-			if (($cond eq '<>')||($cond eq '<STDIN>')) {
-				#reading from STDIN/arguments, equiv of python fileinput.input()
-				#however need to use for loop and handle the import
-				$line_to_print =~ s/^while/for/;
-				$line_to_print =~ s/=/in/;
-				$cond = checkSysMod($cond);
-				#note: the above function call for <STDIN> will return 'sys.stdin.readline()' for our python
-				#translation. This unfortunately doesn't work in the context of a loop, as 'sys.stdin.readline()'
-				#returns a single string, and as such python will iterate through each character in that string
-				#and not perform any operations on any of the other strings, as they aren't called.
-				#to fix this, we need it to be returned as a file object, so we will change it to 'sys.stdin'
-				#which performs correctly in this context
-				$cond =~ s/sys\.stdin\.readline\(\)/sys\.stdin/;
-				$line_to_print .= $cond;
-			} elsif ($cond =~ /\<[^>]*\>/) {
-				$temp = $python_source[$lines_python_source - 1];
-				$python_source[$lines_python_source - 1] = '';				
-				chomp $temp;
-				$temp =~ s/^[^=]+= //;
-				$lines_python_source--;
-				$line_to_print = "for line in $temp";
-				$should_break = 1;
-			} elsif ($cond =~ /lenLBRACKET.+RBRACKET/) {
-				$cond =~ s/LBRACKET/\(/;
-				$cond =~ s/RBRACKET/\)/;
-				$cond =~ s/\$//;
-				$line_to_print .= $cond;
-			} else {
-				$line_to_print .= conditionHandling($cond);
-			}
-		}	
+			foreach $cond(@conds) {
+				break if $should_break == 1;
+				if (($cond eq '<>')||($cond eq '<STDIN>')) {
+					#reading from STDIN/arguments, equiv of python fileinput.input()
+					#however need to use for loop and handle the import
+					$line_to_print =~ s/^while/for/;
+					$line_to_print =~ s/=/in/;
+					$cond = checkSysMod($cond);
+					#note: the above function call for <STDIN> will return 'sys.stdin.readline()' for our python
+					#translation. This unfortunately doesn't work in the context of a loop, as 'sys.stdin.readline()'
+					#returns a single string, and as such python will iterate through each character in that string
+					#and not perform any operations on any of the other strings, as they aren't called.
+					#to fix this, we need it to be returned as a file object, so we will change it to 'sys.stdin'
+					#which performs correctly in this context
+					$cond =~ s/sys\.stdin\.readline\(\)/sys\.stdin/;
+					$line_to_print .= $cond;
+				} elsif ($cond =~ /\<[^>]*\>/) {
+					$temp = $python_source[$lines_python_source - 1];
+					$python_source[$lines_python_source - 1] = '';				
+					chomp $temp;
+					$temp =~ s/^[^=]+= //;
+					$lines_python_source--;
+					$line_to_print = "for line in $temp";
+					$should_break = 1;
+				} elsif ($cond =~ /lenLBRACKET.+RBRACKET/) {
+					$cond =~ s/LBRACKET/\(/;
+					$cond =~ s/RBRACKET/\)/;
+					$cond =~ s/\$//;
+					$line_to_print .= $cond;
+				} else {
+					$line_to_print .= conditionHandling($cond);
+				}
+			}	
+		}
 	}
 	addToSourceArray("$line_to_print:\n");
 }
