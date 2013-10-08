@@ -5,11 +5,9 @@
 # http://cgi.cse.unsw.edu.au/~cs2041/13s2/assignments/perl2python
 # edited by hwav057@cse.unsw.edu.au for more functionality September and October 2013
 
-#Do in order:
-#?. need to be able to alter existing array elements, and use them? in sub handleArray
-#1. double hashes? ??
-
 #my print function adds an extra space when it is handling a variable
+
+#examples/3/echonl.0.pl
 
 #note trans of while ($line = pop @arr) { print "$line\n"; }
 #is for line in reversed(arr):
@@ -97,7 +95,7 @@ while ($line = <>) {
 		} else {
 			addToSourceArray("continue\n");
 		}
-	} elsif ($line =~ /^\@(.+)\s*\=\s+(.+)\;\s*/) {
+	} elsif ($line =~ /^\s*\@(.+)\s*\=\s*(.+)\;\s*/) {
 		handleArrayDec($1,$2);
 	} elsif (($line =~ /push\([^\,]*\,([^\)]*)\)/)||($line =~ /unshift\([^\,]*\,([^\)]*)\)/)) {
 		#handle push and unshift on arrays
@@ -222,6 +220,7 @@ sub handleArrayTake {
 sub handleSplit {
 	my $delimeter = $_[0];
 	my $variable = $_[1];
+	$delimeter =~ s/\\([^\\])/$1/;
 	return "$variable.split('$delimeter')";
 }
 
@@ -352,9 +351,19 @@ sub variableDec {
 		#check if each item is a variable and interp
 		#print "var ass ($variable_assign)\n";
 		#$variable_assign =~ s/\"|\'//g;
+		$variable_assign = checkSysMod($variable_assign);
+		#note the following four lines are a precaution, it is a case where my code
+		#can break. this is because it converts all perl string concat '.'s to '+' (python)
+		#but in this case, the dot is required, so using temp variable		
+		$variable_assign =~ s/m.group/mLEGITDOTgroup/;
+		$variable_assign =~ s/sys.argv/sysLEGITDOTargv/;
+		$variable_assign =~ s/sys.stdin.readline/sysLEGITDOTstdinLEGITDOTreadline/;
+		$variable_assign =~ s/fileinput.input/fileinputLEGITDOTinput/;	
+
 		$variable_assign =~ s/length\((.*)\)/len\($1\)/; #convert all length() funcs to len() 
 		$variable_assign =~ s/\s?\.\s?/ \+ /g;
 		$variable_assign =~ s/\"\$([a-zA-Z]+)\"/$1/g;
+		
 		my $to_add = '';
 		$quote = 0;
 		$variable = 0;
@@ -385,7 +394,7 @@ sub variableDec {
 		$variable_assign =~ s/\$//g;
 		#$line_to_print .= "$variable_assign";
 		undef $letter;
-		$variable_assign =~ s/LEGITDOT/\./;
+		$variable_assign =~ s/LEGITDOT/\./g;
 		#$line_to_print .= "\n";
 		if ($using_array == 1) {
 			addToSourceArray("$variable_name$variable_assign)\n");
@@ -551,11 +560,14 @@ sub regularExpHandling {
 			$perl_reg = "re.sub(r'$pattern', '$change_to', $variable)";
 		}
 	} elsif ($perl_reg =~ /^\s*\/([^\/]+)\//) {
+		#translates to re.search in python
+		#the examples suggest re.match, but re.match only returns true if the
+		#expression searched for occurs at the start of the string searched in
 		$pattern = $1;
 		if ($pattern =~ s/\$(.+)/$1/) { #this is removing the end of line metacharacter
-			$perl_reg = "re.match($pattern, $variable)";
+			$perl_reg = "re.search($pattern, $variable)";
 		} else {
-			$perl_reg = "re.match('$pattern', $variable)";
+			$perl_reg = "re.search('$pattern', $variable)";
 		}
 	} else {
 		$perl_reg = "#$perl_reg#NOT HANDLING THIS CASE YET";
@@ -611,27 +623,27 @@ sub handleIf {
 	$conds_to_trans =~ s/length\((.+)\)/lenLBRACKET$1RBRACKET/g;
 	$conds_to_trans =~ s/^\(//;
 	$conds_to_trans =~ s/\)$//;
-	#print "($conds_to_trans)\n";
-	my @a = split /\(|\)/,$conds_to_trans;
-	#print "@a\n";
-	$line_to_print = "if ";
-	while (my $condi = shift @a) {
-		#got to check if its a logical operator
-		if ($condi =~ /^\&\&$/ ) {
-			$line_to_print .= ' and ';
-			next;
-		} elsif ($condi =~ /^\|\|$/) {
-			$line_to_print .= ' or ';
-			next;
-		}
-		#now go through conds and trans
-		my @conds = split /\s+/, $condi;
-	
-		if ($conds[1] eq '=~') {
-			$conds[0] =~ s/^\$//;
-			addToSourceArray("m = " . regularExpHandling($conds[2],$conds[0]). "\n");
-			$line_to_print .= 'm';
-		} else {
+	my $line_to_print = '';
+	if ($conds_to_trans =~ s/^\$(.+)\=\~//) {
+		my $v_name = $1;
+		my $random_letter = 'm';
+		addToSourceArray("$random_letter = ".regularExpHandling($conds_to_trans, $v_name)."\n");
+		$line_to_print .= "if $random_letter";
+	} else {
+		my @a = split /\(|\)/,$conds_to_trans;
+		#print "@a\n";
+		$line_to_print .= "if ";
+		while (my $condi = shift @a) {
+			#got to check if its a logical operator
+			if ($condi =~ /^\&\&$/ ) {
+				$line_to_print .= ' and ';
+				next;
+			} elsif ($condi =~ /^\|\|$/) {
+				$line_to_print .= ' or ';
+				next;
+			}
+			#now go through conds and trans
+			my @conds = split /\s+/, $condi;
 			foreach $cond (@conds) {
 				if ($cond =~ /lenLBRACKET.+RBRACKET/) {
 					$cond =~ s/LBRACKET/\(/;
@@ -643,7 +655,6 @@ sub handleIf {
 					$last = $cond;
 				}
 			}
-			
 		}
 	}
 	addToSourceArray("$line_to_print:\n");
@@ -739,7 +750,7 @@ sub handleForeach {
 	
 	#then need to add some python syntax
 	$line_to_print .= " in ";
-
+	
 	#then the difficult part, translating range
 	if ($conds_to_trans =~ /keys \%([^ ]*)/) {
 		#the case that we're iterating through the keys of a hash
@@ -749,10 +760,12 @@ sub handleForeach {
 		} else {
 			$line_to_print .= "$dict_name.keys()";
 		}	
-	} elsif ($conds_to_trans =~ s/\@([^ ]+)//) {
+	} elsif ($conds_to_trans =~ s/(\@[^ ]+)//) {
+		my $cond_check = checkSysMod($1);
+		
 		#case its reading the elements in an array
 		#then it's 'for line in array'
-		$line_to_print .= "$1";
+		$line_to_print .= $cond_check;
 	} else {
 		$conds[1] =~ s/\(|\)//;
 		my @nums = split /\.+/, $conds[1];
