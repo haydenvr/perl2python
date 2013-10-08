@@ -6,14 +6,10 @@
 # edited by hwav057@cse.unsw.edu.au for more functionality September and October 2013
 
 #Do in order:
-#??. split function (happens in variable dec) !!!!implemented successfully in variable dec, not sure where else (need with arrays)
-#1. arrays and push pop unshift reverse !done pop and shift
-###should add pop and shift to condition handling and just delete declaration ie the 'a = ' bit
-#2. need to handle @array = <STDIN> or @array = <F> !done @array = <STDIN>
-#4. need to be able to alter existing array elements, and use them?
-#5. need to fix regex handling
-#6. need to do simple uses of printf in perl
-#7. double hashes? ??
+#?. need to be able to alter existing array elements, and use them? in sub handleArray
+#1. double hashes? ??
+
+#my print function adds an extra space when it is handling a variable
 
 #note trans of while ($line = pop @arr) { print "$line\n"; }
 #is for line in reversed(arr):
@@ -43,7 +39,10 @@ while ($line = <>) {
 	} elsif ($line =~ /^\s*#/ || $line =~ /^\s*$/) {
 		# Blank & comment lines can be passed unchanged
 		addToSourceArray("$line\n");
-	} elsif ($line =~ /^\s*print\s*("*.*\s*[\\n]?\s*")*\s*\;*$/) {
+	} elsif ($line =~ /^\s*printf\s*([^\;]+)\;*$/) {
+		#handle printf. send to function
+		handlePrintf($1);
+	} elsif ($line =~ /^\s*print\s*([^\;]+)\;*$/) { #/^\s*print\s*("?.*\s*[\\n]?\s*"?)*\s*\;*$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
 		$temp = $1;
@@ -100,9 +99,13 @@ while ($line = <>) {
 		}
 	} elsif ($line =~ /^\@(.+)\s*\=\s+(.+)\;\s*/) {
 		handleArrayDec($1,$2);
+	} elsif (($line =~ /push\([^\,]*\,([^\)]*)\)/)||($line =~ /unshift\([^\,]*\,([^\)]*)\)/)) {
+		#handle push and unshift on arrays
+		my $a = handleArrayAdd($line,$1);
+		addToSourceArray("$a\n");
 	} else {
-		# Lines we can't translate are turned into comments
-		print "HI\n";
+		#Lines we can't translate are turned into comments
+		#print "HI\n";
 		addToSourceArray("#$line\n");
 	}
 	#adding comments if they exiest
@@ -113,6 +116,21 @@ while ($line = <>) {
 	}
 }
 outputSource();
+
+sub handlePrintf {
+	#going to reformat string and call with normal print function
+	#as normal print function is capable of the same functionality
+	my $to_print = $_[0];
+	#basically need to go through in order, first argument gets pasted to first formatter
+	my $argument = $to_print;
+	$argument =~ s/([^\,]+)\,\s*//;
+	$to_print = $1;
+	my @arguments = split / /,$argument;
+	foreach $arg (@arguments) {
+		$to_print =~ s/\%[csduoxXeEfGgpn]/$arg/;
+	}
+	printFunction($to_print);
+}
 
 sub handleArrayDec {
 	my $array = $_[0];	
@@ -127,6 +145,17 @@ sub handleArrayDec {
 		addToSourceArray("$array.append(line)\n");
 		$tab--;
 		handleImports('sys');
+	} elsif ($assign =~ s/split\s*\/(.*)\/\,\s*\$([^ \.]+)/FIXME/) {
+		$variable_assign = handleSplit($1,$2);
+		addToSourceArray("$array = $variable_assign\n");
+	} elsif ($assign =~ /reverse\(\@([^\)]*)\)/) {
+		#handle reverse statement
+		addToSourceArray("$array = $1\[::-1]\n");
+	} elsif ($assign =~ /^\<(.*)\>$/) {
+		addToSourceArray("for line in F:\n");
+		$tab++;
+		addToSourceArray("$array.append(line)\n");
+		$tab--;
 	} else {
 		addToSourceArray("#$array = $assign NOT HANDLED YET handleArrayDec\n");
 	}
@@ -161,17 +190,16 @@ sub handleArrayAdd {
 	#operations on arrays where an object is added to list
 	my $input_to_handle = $_[0];
 	my $assign = $_[1];
-	print "in : $input_to_handle\n out: $assign\n";
 	my $arr_name = $input_to_handle;
-	$arr_name =~ s/\@([^ ]+)//;
+	$arr_name =~ s/\@([^\,]+)//;
 	$arr_name = $1;
-	print "this should be arr name ($arr_name)\n";
+	
 	if ($input_to_handle =~ /push/) {
 		return "$arr_name.append($assign)";
 	} elsif ($input_to_handle =~ /unshift/) {
-		return "$arr_name.insert($assign)";
+		return "$arr_name.insert(0,$assign)";
 	} else {
-		return "#$input_to_handle handleArrayPush: not handled\n";
+		return "#$input_to_handle handleArrayPush: not handled";
 	}
 }
 
@@ -240,12 +268,14 @@ sub variableDec {
 		$variable_assign = "m.group($1)";
 	}
 	if ($variable_assign =~ s/split\s*\/(.*)\/\,\s*\$([^ \.]+)/FIXME/) {
+		#handling split function
 		my $fix = handleSplit($1,$2);
-		$fix =~ s/\./LEGITDOT/;
+		$fix =~ s/\./LEGITDOT/;	#dots are replaced later in this function, so this is a temp variable for the while
 		$variable_assign =~ s/FIXME/$fix/;
 	}
 	if ($variable_name =~ /\[(.*)\]/) {
-		$variable_name = handleArray($variable_name);
+		#handling array declarations
+		$variable_name = handleArray($variable_name); 
 		($variable_name, $extra) = split /CUTMEHERE/,$variable_name;
 		$using_array = 1;
 		if ($extra =~ /.+/) {
@@ -257,7 +287,15 @@ sub variableDec {
 		my $potential_following = $2;
 		$variable_name = handleHash($variable_name,$1).$potential_following;
 	}
-	if ($variable_assign =~ /{(.*)}/) {
+	if ($variable_assign =~ /^~/) {
+		$variable_assign =~ s/^~\s*//;
+		$variable_assign = regularExpHandling($variable_assign, $variable_name);
+		if ($using_array == 1) {
+			addToSourceArray("$variable_name$variable_assign)\n");
+		} else {
+			addToSourceArray("$variable_name = $variable_assign\n");
+		}
+	} elsif ($variable_assign =~ /{(.*)}/) {
 		#hash same as last time except on different end of declaration
 		$hash_key = $1;
 		$variable_assign =~ s/^\$//; #need to remove perl's variable metacharacter "$"
@@ -269,14 +307,6 @@ sub variableDec {
 		}
 	} elsif ($variable_assign =~ /\@/) {
 		addToSourceArray(handleArrayTake($variable_assign,$variable_name) . "\n");
-	} elsif ($variable_assign =~ /^~/) {
-		$variable_assign =~ s/^~\s*//;
-		$variable_assign = regularExpHandling($variable_assign, $variable_name);
-		if ($using_array == 1) {
-			addToSourceArray("$variable_name$variable_assign)\n");
-		} else {
-			addToSourceArray("$variable_name = $variable_assign\n");
-		}
 	} elsif ($variable_assign eq '') {
 		#variable dec is of form $variable++ or $variable--
 		#also need to check if these are hashes, if so the variable name will
@@ -330,10 +360,8 @@ sub variableDec {
 		$variable = 0;
 		foreach $letter (split //,$variable_assign) {
 			if ($letter eq '"') {
-				
 				if ($quote == 1) { 
 					if ($variable == 1) {
-						print " hi\!\n";
 						$variable = 0;
 						$letter = '';
 					}
@@ -419,8 +447,10 @@ sub printFunction {
 			my $array_handling = $1;
 			if ($is_first_statement == 0) {
 				$line_to_print .= "\"" if $is_string == 1;
-				$line_to_print .= "\n";
-				addToSourceArray($line_to_print);
+				#$line_to_print .= "\n";
+				if ($line_to_print ne 'print ') {
+					addToSourceArray("$line_to_print\n");
+				}
 			}
 			addToSourceArray("for line in $array_handling:\n");
 			$tab++;
@@ -659,13 +689,11 @@ sub handleWhile {
 					#which performs correctly in this context
 					$cond =~ s/sys\.stdin\.readline\(\)/sys\.stdin/;
 					$line_to_print .= $cond;
-				} elsif ($cond =~ /\<[^>]*\>/) {
-					$temp = $python_source[$lines_python_source - 1];
-					$python_source[$lines_python_source - 1] = '';				
-					chomp $temp;
-					$temp =~ s/^[^=]+= //;
-					$lines_python_source--;
-					$line_to_print = "for line in $temp";
+				} elsif ($cond =~ /\<([^>]*)\>/) {
+					my $filehandle = $1; #file object we're dealing with
+					#now need to find the variable name it's being assigned
+					$line_to_print =~ s/ (.*) \=//; #now it will be called $1
+					$line_to_print = "for $1 in $filehandle";
 					$should_break = 1;
 				} elsif ($cond =~ /lenLBRACKET.+RBRACKET/) {
 					$cond =~ s/LBRACKET/\(/;
