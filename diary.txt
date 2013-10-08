@@ -26,6 +26,7 @@ Date    Start   Stop    Activity
 		10:00pm	12:10am	worked on array functions (shift unshift pop push) and arrayDec's such as '@a = <STDIN>' and also printing arrays ie 'print "@arr"'
 08/10	2:00pm	4:00pm	added in array interpolation, array functions (shift push and reverse), fixed some issues with print and reg exp, added basic printf
 		7:20pm	8:50pm	finalising code
-		9:05pm	11:45pm	creating demos and tests
+		9:05pm	12:30am	creating demos and tests, finalising small bugs and submitting
+		
 
-Total Time: 1790min = 29hr 50min	
+Total Time: 1835min = 30hr 35min	

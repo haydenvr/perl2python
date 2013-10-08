@@ -38,7 +38,7 @@ while ($line = <>) {
 	} elsif ($line =~ /^\s*printf\s*([^\;]+)\;*$/) {
 		#handle printf. send to function
 		handlePrintf($1);
-	} elsif ($line =~ /^\s*print\s*([^\;]+)\;\s*$/) { #/^\s*print\s*("?.*\s*[\\n]?\s*"?)*\s*\;*$/) {
+	} elsif ($line =~ /^\s*print\s*([^\;]+)/) { 
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
 		$temp = $1;
@@ -101,7 +101,6 @@ while ($line = <>) {
 		addToSourceArray("$a\n");
 	} else {
 		#Lines we can't translate are turned into comments
-		#print "HI\n";
 		addToSourceArray("#$line\n");
 	}
 	#adding comments if they exiest
@@ -791,15 +790,16 @@ sub handleForeach {
 	} else {
 		$conds[1] =~ s/\(|\)//;
 		my @nums = split /\.+/, $conds[1];
+		
 		$nums[0] = checkSysMod($nums[0]);
 		if ($nums[0] eq 'sys.argv[1:]') {
 			$line_to_print .= $nums[0];
 		} else{
 			$line_to_print .= "xrange(";
+			$nums[1] = checkSysMod($nums[1]);
 			if ($nums[1] =~ s/^\$//) {
 				$line_to_print .= "$nums[0],int($nums[1]))";
 			} else {
-				$nums[1] = checkSysMod($nums[1]);
 				if ($nums[1] eq 'len(sys.argv) - 1') {
 					$line_to_print .= "$nums[1])";
 				} else {

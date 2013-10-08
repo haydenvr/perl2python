@@ -1,6 +1,6 @@
 #!/usr/bin/perl -w
 
-$n = <STDIN>;
+$n = 1;
 while ($n <= 10) {
     $total = 0;
     $j = 1;
