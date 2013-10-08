@@ -7,7 +7,6 @@ while ($line = <STDIN>) {
     $line[$line_number++] = $line;
 }
 
+@reversed_lines = reverse @line;
+print "@reversed_lines\n";
 
-for ($line_number = $#line; $line_number >= 0 ; $line_number--) {
-    print $line[$line_number];
-}

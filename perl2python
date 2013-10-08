@@ -7,12 +7,7 @@
 
 #my print function adds an extra space when it is handling a variable
 
-#examples/3/echonl.0.pl
-
-#note trans of while ($line = pop @arr) { print "$line\n"; }
-#is for line in reversed(arr):
-#		print line
-
+#GLOBAL VARIABLES: used throughout entire code
 our $tab = 0;
 our @python_source = ();
 our @imports_python_source = ();
@@ -23,6 +18,9 @@ our $amt_lists = 0;
 our %variables = [];
 our $lines_python_source = 0;
 our $lines_imports = 0;
+#END GLOBAL VARIABLES
+
+#MAIN LOOP: goes through each line and calls functions which handle translation
 while ($line = <>) {
 	chomp $line;
 	#need to check if there is any comments at end of line of code, if there is
@@ -40,7 +38,7 @@ while ($line = <>) {
 	} elsif ($line =~ /^\s*printf\s*([^\;]+)\;*$/) {
 		#handle printf. send to function
 		handlePrintf($1);
-	} elsif ($line =~ /^\s*print\s*([^\;]+)\;*$/) { #/^\s*print\s*("?.*\s*[\\n]?\s*"?)*\s*\;*$/) {
+	} elsif ($line =~ /^\s*print\s*([^\;]+)\;\s*$/) { #/^\s*print\s*("?.*\s*[\\n]?\s*"?)*\s*\;*$/) {
 		# Python's print adds a new-line character by default
 		# so we need to delete it from the Perl print statement
 		$temp = $1;
@@ -69,7 +67,7 @@ while ($line = <>) {
 		$tab += $result;
 	} elsif ($line =~ /^\s*chomp \$([^\;]*)\;\s*$/) {
 		#handle chomp function	
-		addToSourceArray("$1 = $1.rstrip()\n");
+		addToSourceArray("$1 = $1.rstrip(\'\\n\')\n");
 	} elsif ($line =~ /\s*last;\s*$/) {
 		addToSourceArray("break\n");
 	} elsif ($line =~ /^\s*open ([^\;]*)\;\s*$/) {
@@ -113,11 +111,14 @@ while ($line = <>) {
 		undef $comment;
 	}
 }
+#function that handles the printing of python code to STDOUT
 outputSource();
+#END MAIN LOOP
 
+#HELPER FUNCTIONS: there's a lot, they do pretty much everything
 sub handlePrintf {
-	#going to reformat string and call with normal print function
-	#as normal print function is capable of the same functionality
+	#Used to handle basic perl Printf functions
+	#output is using the python print function
 	my $to_print = $_[0];
 	#basically need to go through in order, first argument gets pasted to first formatter
 	my $argument = $to_print;
@@ -125,12 +126,16 @@ sub handlePrintf {
 	$to_print = $1;
 	my @arguments = split / /,$argument;
 	foreach $arg (@arguments) {
+		#insert all the arguments of the printf into the actual string (ie so my printFunction can handle it)
 		$to_print =~ s/\%[csduoxXeEfGgpn]/$arg/;
 	}
+	#call my normal print handle function, its capable of outputting this properly
 	printFunction($to_print);
 }
 
 sub handleArrayDec {
+	#used for handling simple statements like @a = <STDIN>
+	#some of this stuff in perl is only one line, but many lines in python
 	my $array = $_[0];	
 	my $assign = $_[1];
 	$array =~ s/ //g;
@@ -160,6 +165,7 @@ sub handleArrayDec {
 }
 
 sub handleHash {
+	#for basic hash declarations, just translates the perl syntax to python syntax
 	my $hash_to_handle = $_[0];
 	my $hash_key = $_[1];
 	#we need to remove curly braces
@@ -176,22 +182,29 @@ sub handleHash {
 }
 
 sub handleOpen {
+	#translates perl's open function to python's open function
 	#just assuming the basic case of reading from a file, in format of 
 	#open F, "<file_name"; and convert to F = open("file_name")
 	my @arguments = split /\s*,\s*/, $_[0];
 	$arguments[1] =~ s/^\"\<//;
 	$arguments[1] =~ s/\"$//;
-	addToSourceArray("$arguments[0] = open(\"$arguments[1]\")\n");  
+	my $tmp = $arguments[1];
+	$arguments[1] = checkSysMod($arguments[1]);
+	addToSourceArray("$arguments[0] = open(\"$arguments[1]\")\n") if $arguments[1] eq $tmp; 
+	addToSourceArray("$arguments[0] = open($arguments[1])\n") if $arguments[1] ne $tmp; 
 }
 
 sub handleArrayAdd {
-	#operations on arrays where an object is added to list
+	#operations on arrays where an object is added via function to list, ie push and unshift
 	my $input_to_handle = $_[0];
 	my $assign = $_[1];
 	my $arr_name = $input_to_handle;
 	$arr_name =~ s/\@([^\,]+)//;
 	$arr_name = $1;
-	
+	$assign =~ s/^\$//;
+	if (!grep( /^$arr_name$/, @list_source)) {
+		$list_source[$amt_lists++] = $arr_name;
+	} 
 	if ($input_to_handle =~ /push/) {
 		return "$arr_name.append($assign)";
 	} elsif ($input_to_handle =~ /unshift/) {
@@ -202,7 +215,7 @@ sub handleArrayAdd {
 }
 
 sub handleArrayTake {
-	#operations on arrays where an object is taken from list
+	#operations on arrays where an object is taken from list, ie pop and shift
 	my $input_to_handle = $_[0];
 	my $assign = $_[1];
 	my $arr_name = $input_to_handle;
@@ -218,9 +231,10 @@ sub handleArrayTake {
 }
 
 sub handleSplit {
+	#basic translation of the perl split to python split
 	my $delimeter = $_[0];
 	my $variable = $_[1];
-	$delimeter =~ s/\\([^\\])/$1/;
+	$delimeter =~ s/\\([^\\])/$1/; #python's split doesn't read metacharacters, so perl's metacharacter canceller '\' needs to be removed
 	return "$variable.split('$delimeter')";
 }
 
@@ -244,6 +258,7 @@ sub handleIntegerVariables {
 }
 
 sub handleArray {
+	#handles arrays when elements are added to them
 	my $list = $_[0];
 	my $extra = '';
 	$list =~ s/\[(.*)\]//;
@@ -259,6 +274,7 @@ sub handleArray {
 }
 
 sub variableDec {
+	#variable declaration function, handles pretty much every thing of form "$variable = ..." or "$variable =~ ..."
 	my $variable_name = $_[0];
 	my $variable_assign = $_[1];
 	$variable_name =~ s/\./\+/;
@@ -428,7 +444,10 @@ sub checkSysMod {
 	} elsif ($to_check eq '$#ARGV') {
 		$to_check = "len(sys.argv) - 1";
 		handleImports('sys');
-	} 
+	} elsif ($to_check =~ /^\$ARGV\[([0-9])\]$/) {
+		$to_check = "sys.argv[1]";
+		handleImports('sys');
+	}
 	return $to_check;
 }
 
@@ -547,8 +566,8 @@ sub printFunction {
 	addToSourceArray($line_to_print);
 }
 
-#not called anywhere yet #will be passed from variableDec
 sub regularExpHandling {
+	#translates perl's regular expressions to python's own version
 	my $perl_reg = $_[0]; #will be the command that follows the "=~" sign
 	my $variable = $_[1]; #the variable that's being operated on
 	if ($perl_reg =~ /^\s*s\/([^\/]+)\/([^\/]*)\/[g]?/) {
@@ -661,6 +680,7 @@ sub handleIf {
 }
 
 sub handleWhile {
+	#translates perl's while loops, and handles the conditionals
 	my $conds_to_trans = $_[0];
 	$conds_to_trans =~ s/length\((.+)\)/lenLBRACKET$1RBRACKET/g;
 	$conds_to_trans =~ s/^\(//;
@@ -683,7 +703,7 @@ sub handleWhile {
 			$line_to_print .= $cond_to_check;
 		} else {
 			my @conds = split /\s+/, $condi;
-
+			my $last = '';
 			foreach $cond(@conds) {
 				break if $should_break == 1;
 				if (($cond eq '<>')||($cond eq '<STDIN>')) {
@@ -712,8 +732,9 @@ sub handleWhile {
 					$cond =~ s/\$//;
 					$line_to_print .= $cond;
 				} else {
-					$line_to_print .= conditionHandling($cond);
+					$line_to_print .= conditionHandling($cond,$last);
 				}
+				$last = $cond;
 			}	
 		}
 	}
@@ -721,6 +742,7 @@ sub handleWhile {
 }
 
 sub handleImports {
+	#checks if a certain import has already been added to source code, to prevent duplicates
 	my $import_to_check = $_[0];
 	if (!grep( /^$import_to_check$/, @imports_python_source)) {
 		$imports_python_source[$lines_imports] = "$import_to_check";
@@ -762,7 +784,7 @@ sub handleForeach {
 		}	
 	} elsif ($conds_to_trans =~ s/(\@[^ ]+)//) {
 		my $cond_check = checkSysMod($1);
-		
+		$cond_check =~ s/^\@//;
 		#case its reading the elements in an array
 		#then it's 'for line in array'
 		$line_to_print .= $cond_check;
@@ -772,21 +794,26 @@ sub handleForeach {
 		$nums[0] = checkSysMod($nums[0]);
 		if ($nums[0] eq 'sys.argv[1:]') {
 			$line_to_print .= $nums[0];
-		} else {
+		} else{
 			$line_to_print .= "xrange(";
-			$nums[1] = checkSysMod($nums[1]);
-			if ($nums[1] eq 'len(sys.argv) - 1') {
-				$line_to_print .= "$nums[1])";
+			if ($nums[1] =~ s/^\$//) {
+				$line_to_print .= "$nums[0],int($nums[1]))";
 			} else {
-				$nums[1]++; #pythons range function doesn't include last num
-				$line_to_print .= "$nums[0], $nums[1])";
-			}		
+				$nums[1] = checkSysMod($nums[1]);
+				if ($nums[1] eq 'len(sys.argv) - 1') {
+					$line_to_print .= "$nums[1])";
+				} else {
+					$nums[1]++; #pythons range function doesn't include last num
+					$line_to_print .= "$nums[0], $nums[1])";
+				}
+			}			
 		}
 	}
     addToSourceArray("$line_to_print:\n");
 }
 
 sub handleElse {
+	#similar to handleIf except for the else statement
 	my $cond_to_handle = $_[0];
 	#print "Hayden here and ($cond_to_handle)\n";
 	if ($cond_to_handle =~ /^\s*\}\s*elsif\s*\((.*)\)\s*\{\s*$/) {
@@ -810,6 +837,8 @@ sub handleElse {
 }
 
 sub addToSourceArray {
+	#helper function that automatically adds the required amount of tabs, and then adds the line of
+	#newly formatted python code to our source array
 	my $to_print = $_[0];
 	$amt_tabs = $tab;
 	while ($amt_tabs > 0) {
@@ -820,6 +849,7 @@ sub addToSourceArray {
 }
 
 sub outputSource {
+	#helper function that prints all aspects of the python source in correct order and formatting
 	print "import " if $lines_imports != 0;
 	$i = 0;
 	foreach $line (@imports_python_source) {

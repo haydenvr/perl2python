@@ -1,30 +1,31 @@
-Date    Start   Stop    Activity        		Comments
-12/9    11:30am 11:50   started         		added basic variable declaration and variable interpolation in print
-        1:30pm  2:10    variables def   		introduced variable interpolation in variable declaration
-13/9    10:00am 11.00   print function  		got print function working, started using subs for bigger translations
-                                        		wrote a bit more of test.sh
-14/9	4:30pm	5:00pm	if function				introduced handling of if statements, and also the tabs required by python
-		7:50pm	8.40pm while and foreach		wrote more handling on the loops and the operators	
-		9.20pm	11:05pm imports and else		added handling for importing and specifically STDIN, and else/elsif statements + debugging 
-26/9 	4:00pm	6:00pm	fixing print			chomp function, fixing up print handling
-27/9 	9:00am	11:00am	fixing print and sys	had to do a complete overhaul of my print handling as I made it too complex and that was actually making it
-												impossible to handle certain types of strings. Also introduced some sys module handling
-		5:00pm	6:00pm	some filehandling		improved file handling and finished off rest of subset 3
-28/9	1:40pm	2:40pm	reg exp and for			implemented basic reg exp handling, as well as some sys function in for loops
-		4:00pm	5:00pm	test script				improved test script and added some handling for a few examples
-01/10 	7:30pm	8:00pm	open funct				worked on adding open function					
-		11:00pm	11:40pm	regex and open			added more regex and open functionality
-02/10 	10:40am	12:00pm hash, bitwise			added basic hash handling, as well as a few missing things such as bitwise operators
+Date    Start   Stop    Activity        		
+12/9    11:30am 11:50   started: added basic variable declaration and variable interpolation in print
+        1:30pm  2:10    variables def: introduced variable interpolation in variable declaration
+13/9    10:00am 11.00   print function: got print function working, started using subs for bigger translations
+                        wrote a bit more of test.sh
+14/9	4:30pm	5:00pm	if function: introduced handling of if statements, and also the tabs required by python
+		7:50pm	8.40pm  while and foreach: wrote more handling on the loops and the operators	
+		9.20pm	11:05pm imports and else: added handling for importing and specifically STDIN, and else/elsif statements + debugging 
+26/9 	4:00pm	6:00pm	fixing print: chomp function, fixing up print handling
+27/9 	9:00am	11:00am	fixing print and sys: had to do a complete overhaul of my print handling as I made it too complex and that was actually making it
+						impossible to handle certain types of strings. Also introduced some sys module handling
+		5:00pm	6:00pm	some filehandling: improved file handling and finished off rest of subset 3
+28/9	1:40pm	2:40pm	reg exp and for: implemented basic reg exp handling, as well as some sys function in for loops
+		4:00pm	5:00pm	test script: improved test script and added some handling for a few examples
+01/10 	7:30pm	8:00pm	open funct: worked on adding open function					
+		11:00pm	11:40pm	regex and open: added more regex and open functionality
+02/10 	10:40am	12:00pm hash, bitwise: added basic hash handling, as well as a few missing things such as bitwise operators
 03/10 	10:30am	11:00am	keys, variables in regex
 		8:45pm	9:20pm	added next and last
 04/10	9:40am	11:00am	added in handling for multiple conditional operators in if and while statements and support for $hash{$key}++ 
 		5:05pm	6:00pm	added capabilities for handling more arrays/lists
 		8:00pm	8.25pm 	finished append to lists func
-07/10	12:50pm	2:00pm		fixed bug with comments
+07/10	12:50pm	2:00pm	fixed bug with comments
 		2:30pm	3.10pm	trying to fix variable dec
 		4:40pm	6:00pm	implemented more fixes including split in variable dec
 		10:00pm	12:10am	worked on array functions (shift unshift pop push) and arrayDec's such as '@a = <STDIN>' and also printing arrays ie 'print "@arr"'
 08/10	2:00pm	4:00pm	added in array interpolation, array functions (shift push and reverse), fixed some issues with print and reg exp, added basic printf
-		7:20pm
+		7:20pm	8:50pm	finalising code
+		9:05pm	11:45pm	creating demos and tests
 
-Total Time: 1540min = 25hr 40min	
+Total Time: 1790min = 29hr 50min	
